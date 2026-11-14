@@ -1,0 +1,3 @@
+# Only needed for the encrypted accounts file. On Raspberry Pi OS / Debian you can instead run:
+#   sudo apt install python3-cryptography
+cryptography>=3.4

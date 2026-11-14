@@ -1,0 +1,27 @@
+# Editor
+.idea/
+
+# Generated
+desktop/node_modules/
+desktop/build/
+desktop/dist/
+__pycache__/
+*.pyc
+.venv/
+
+# Secrets
+accounts.json
+master.bin
+mailweb.log
+*.p12
+*.pfx
+.env
+# Uncomment if your mailweb.ini ever holds a password, and commit mailweb.ini.example instead
+# mailweb.ini
+
+# Junk
+.DS_Store
+__MACOSX/
+*.zip
+
+run
