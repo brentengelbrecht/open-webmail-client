@@ -18,6 +18,7 @@ function setup(accounts) {
     message: async (r) => ({ uid: r.uid, attachments: [], remote_images_blocked: true }),
     addAccount: async (d) => ({ account: { id: 'new1', name: d.name || 'n', host: d.host, user: d.user } }),
     removeAccount: async () => ({}),
+    renameAccount: async (id, name) => ({ account: { id, name: name.trim() || 'default@host', host: 'h', user: 'u' } }),
     logout: async () => ({}),
   };
   const store = createStore({ authenticated: false, accounts: [], folders: [], foldersError: null,
@@ -183,4 +184,12 @@ test('the third layout can be selected, and closing a message clears the route u
   assert.equal(store.get().layout, 'full');
   actions.closeMessage();
   assert.equal(parseHash(loc.hash).uid, null);
+});
+
+test('renaming an account updates only that account in the store', async () => {
+  const { store, actions } = setup([A, B]);
+  await actions.start(parseHash('#/a1/INBOX'));
+  await actions.renameAccount('b2', '  Family  ');
+  const names = Object.fromEntries(store.get().accounts.map((a) => [a.id, a.name]));
+  assert.deepEqual(names, { a1: 'Alpha', b2: 'Family' });
 });

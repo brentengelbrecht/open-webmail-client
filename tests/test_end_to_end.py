@@ -78,6 +78,17 @@ class EndToEnd(unittest.TestCase):
         self.assertIn(b"Open Webmail Client", self.get("/").body)
         self.assertEqual(self.get("/../../etc/passwd").status, 404)
 
+    def test_brand_assets_are_served_and_prepared_for_the_ui(self):
+        icon = self.get("/img/icon.svg", authed=False)
+        self.assertEqual((icon.status, icon.headers["Content-Type"]), (200, "image/svg+xml"))
+        text = icon.body.decode()
+        self.assertNotIn("<rect", text)                                  # no white box behind the plane
+        self.assertIn('viewBox="42 29 403 271"', text)                   # cropped to the plane: height == image height
+        logo = self.get("/img/owc_logo_name.png", authed=False)
+        self.assertEqual((logo.status, logo.headers["Content-Type"]), (200, "image/png"))
+        self.assertTrue(logo.body.startswith(b"\x89PNG"))
+        self.assertIn(b'rel="icon"', self.get("/", authed=False).body)
+
     def test_folders(self):
         names = [f["name"] for f in self.j("/api/folders")["folders"]]
         self.assertEqual(names, ["INBOX", "Réunions/2023"])
@@ -176,6 +187,25 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(bad.status, 502)
         self.assertEqual(self._add("x", port="abc").status, 400)
         self.assertEqual(len(self.j("/api/accounts")["accounts"]), 1)
+
+    def test_rename_account(self):
+        def patch(body):
+            return self.app.handle(Request("PATCH", "/api/accounts", headers={"cookie": self.cookie},
+                                           body=json.dumps(body).encode()))
+        other = self._add("secret", name="Before")["account"]["id"]
+        r = patch({"id": other, "name": "  My   Gmail  "})
+        self.assertEqual(r.status, 200)
+        info = json.loads(r.body)["account"]
+        self.assertEqual(info["name"], "My Gmail")                       # trimmed, whitespace collapsed
+        self.assertNotIn("password", info)
+        reloaded = AccountRegistry(AccountStore(self.cfg.web.accounts_file, self.cfg.web_password), self.cfg.mail)
+        self.assertEqual({a.id: a.name for a in reloaded.list()}[other], "My Gmail")      # persisted (encrypted file)
+        reloaded.close()
+        self.assertEqual(json.loads(patch({"id": other, "name": "   "}).body)["account"]["name"], "me@127.0.0.1")
+        self.assertEqual(patch({"id": other, "name": "x" * 81}).status, 400)
+        self.assertEqual(patch({"id": other, "name": 5}).status, 400)
+        self.assertEqual(patch({"id": "nope", "name": "x"}).status, 404)
+        self.app.handle(Request("DELETE", "/api/accounts", query={"id": other}, headers={"cookie": self.cookie}))
 
     def test_removing_an_account_purges_its_caches_and_connections(self):
         second = self._add("secret", name="Temp")["account"]["id"]

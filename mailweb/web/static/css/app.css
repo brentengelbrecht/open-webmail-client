@@ -44,8 +44,14 @@ body[data-layout="bottom"] .reader { border-radius: 0; }
 
 .account-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 12px 8px; font-weight: 600; }
 .account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-bar .remove-account { flex: none; width: 30px; height: 30px; color: var(--muted); }
+.account-name { flex: 1; min-width: 0; }
+.account-bar .icon-btn { flex: none; width: 30px; height: 30px; color: var(--muted); }
 .account-bar .remove-account:hover { color: #d93025; }
+/* The edit and delete icons only show while the pointer is over the account name (or a button has keyboard focus). */
+.account-bar .edit-account, .account-bar .remove-account { opacity: 0; transition: opacity .12s; }
+.account-bar:hover .edit-account, .account-bar:hover .remove-account,
+.account-bar:focus-within .edit-account, .account-bar:focus-within .remove-account { opacity: 1; }
+@media (hover: none) { .account-bar .edit-account, .account-bar .remove-account { opacity: 1; } }   /* touch: no hover, so always show */
 
 .splitter { position: relative; z-index: 4; outline: none; }
 .splitter::before { content: ""; position: absolute; }
@@ -68,8 +74,10 @@ body[data-layout="bottom"] .splitter.hl::after { top: -1px; bottom: auto; left: 
 .pane-icon.bottom::after { left: 0; right: 0; top: 45%; border-top: 2px solid currentColor; }
 .pane-icon.full::after { inset: 1px 1px; background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 4px); }
 
-.brand { display: flex; align-items: center; width: 90px; color: var(--text); }
-.logo { display: block; }
+.brand { --brand-h: 40px;               /* icon and lettering share this height: the plane and the two-line text block */
+         display: flex; align-items: center; gap: 10px; flex: none; margin-left: 4px; }
+.brand-icon, .brand-name { display: block; height: var(--brand-h); width: auto; }
+@media (prefers-color-scheme: dark) { .brand-name { filter: invert(1) hue-rotate(180deg); } }   /* dark lettering -> light */
 .search-form { flex: 1; max-width: 640px; }
 .search { width: 100%; padding: 10px 16px; border: 0; border-radius: 24px; background: var(--active); }
 .icon-btn { display: grid; place-items: center; border: 0; background: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 18px; }
@@ -127,6 +135,12 @@ button.primary:disabled { opacity: .6; cursor: default; }
 .loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 32px; color: var(--muted); }
 .sidebar .loading { justify-content: flex-start; padding: 12px; }
 .page-loading { height: 100%; display: grid; place-items: center; }
+
+.error-state { flex: 1; min-height: 60%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+               gap: 16px; padding: 48px 28px; text-align: center; color: var(--muted); }
+.error-state svg { color: var(--muted); opacity: .38; }                         /* the large, pale grey icon */
+.error-state p { margin: 0; max-width: 42ch; line-height: 1.5; overflow-wrap: anywhere; }
+.error-state.compact { min-height: 0; padding: 16px 12px; gap: 8px; font-size: 12px; }
 
 .placeholder { padding: 32px; text-align: center; color: var(--muted); }
 

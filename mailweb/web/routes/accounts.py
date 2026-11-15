@@ -1,4 +1,4 @@
-"""Add, list and remove mail accounts."""
+"""Add, list, rename and remove mail accounts."""
 from ..http import json_response
 
 
@@ -12,6 +12,11 @@ def register(router, ctx):
     @router.route("POST", "/api/accounts")
     def add_account(request):
         return json_response({"account": registry.add(request.json())})
+
+    @router.route("PATCH", "/api/accounts")
+    def rename_account(request):
+        body = request.json()
+        return json_response({"account": registry.rename(str(body.get("id", "")), body.get("name", ""))})
 
     @router.route("DELETE", "/api/accounts")
     def remove_account(request):

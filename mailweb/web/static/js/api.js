@@ -38,6 +38,7 @@ async function request(path, { method = 'GET', params, body } = {}) {
 export const api = {
   accounts: () => request('/api/accounts'),
   addAccount: (details) => request('/api/accounts', { method: 'POST', body: details }),
+  renameAccount: (id, name) => request('/api/accounts', { method: 'PATCH', body: { id, name } }),
   removeAccount: (id) => request('/api/accounts', { method: 'DELETE', params: { id } }),
   session: () => request('/api/session'),
   login: (password) => request('/api/login', { method: 'POST', body: { password } }),

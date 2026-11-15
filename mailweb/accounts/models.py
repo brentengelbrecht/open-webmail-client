@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..errors import BadRequest
 from ..imap import ImapEndpoint
@@ -35,6 +35,17 @@ class Account:
 
     def endpoint(self, timeout: int) -> ImapEndpoint:
         return ImapEndpoint(self.host, self.port, self.user, self.password, self.tls, self.tls_verify, timeout)
+
+    MAX_NAME = 80
+
+    def renamed(self, name: object) -> "Account":
+        """A copy with a new display name. Blank means "use the default" (user@host), as when adding."""
+        if not isinstance(name, str):
+            raise BadRequest("name must be text")
+        name = " ".join(name.split())
+        if len(name) > self.MAX_NAME:
+            raise BadRequest(f"name is too long (at most {self.MAX_NAME} characters)")
+        return replace(self, name=name or f"{self.user}@{self.host}")
 
     @classmethod
     def from_payload(cls, data: dict) -> "Account":

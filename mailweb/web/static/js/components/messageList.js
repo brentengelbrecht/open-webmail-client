@@ -1,5 +1,6 @@
 import { h, render } from '../util/dom.js';
 import { fileSize, listDate, senderName } from '../util/format.js';
+import { errorState } from './errorState.js';
 import { icon } from '../util/icons.js';
 import { spinner } from '../util/spinner.js';
 
@@ -42,9 +43,9 @@ export function mountMessageList(root, store, actions, { onAddAccount }) {
             ? h('ul', { class: 'rows' }, data.items.map((item) => row(item, uid, actions)))
             : h('p', { class: 'placeholder' }, data.query ? 'No messages match your search.' : 'This folder is empty.'));
       }
-      if (list.status === 'error') return render(root, h('p', { class: 'placeholder form-error' }, list.error));
+      if (list.status === 'error') return render(root, errorState(list.error));
       // idle or loading: the mailbox is still being opened (folders first, then the message list)
-      if (foldersError) return render(root, h('p', { class: 'placeholder form-error' }, foldersError));
+      if (foldersError) return render(root, errorState(foldersError));
       if (!foldersLoading && folders.length === 0) return render(root, h('p', { class: 'placeholder' }, 'This account has no folders.'));
       return render(root, spinner('Loading mailbox…'));
     });

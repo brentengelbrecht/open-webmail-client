@@ -15,8 +15,7 @@ from mailweb.web.server import WebServer
 from mailweb.web.sessions import Authenticator, SessionStore
 from mailweb.web.static_files import StaticFiles
 
-# Frozen by PyInstaller (desktop build) the bundled files live under sys._MEIPASS.
-HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
 
 
 def build_server(cfg) -> tuple[WebServer, AccountRegistry]:

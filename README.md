@@ -47,12 +47,13 @@ front-end controller logic (account switching, routing, session expiry, pane siz
 
 ## Features
 
-Multiple accounts (gutter with **+** and one icon per account; switching clears the old mailbox and loads the new one),
+Multiple accounts (gutter with **+** and one icon per account; pencil and trash icons appear when you hover the account
+name above the folder list, to rename or remove it; switching clears the old mailbox and loads the new one),
 folder list with unread counts, newest-first message list with paging, message view (HTML or plain text),
 attachment download, `.eml` download, reading pane to the right of the list, below it, or slid in over a full-width list Gmail style (three icons at the
 far right of the top bar; in the third layout the back arrow or Esc slides the message out again), a hamburger button that slides the folder list away and back (remembered; an overlay on phones), drag handles on the pane dividers (also arrow keys when focused; double-click resets; sizes and
 layout are remembered in the browser), per-message remote images (or always, with `[mail] load_remote_images = true`),
-automatic sign-out when the session ends (`[web] session_minutes`, default 60), search with Gmail-style operators
+errors shown as a large pale icon with the message in the pane that failed, automatic sign-out when the session ends (`[web] session_minutes`, default 60), search with Gmail-style operators
 (`from: to: cc: subject: is:unread|read|starred after:YYYY-MM-DD before:YYYY-MM-DD`, quoted phrases, free words).
 Search is per folder. Free words match subject and raw message text; the server's `TEXT` search looks at
 undecoded bytes, so non-ASCII words are only found in subjects.
@@ -90,6 +91,8 @@ mailweb/
     sessions.py            session store + password check + cookies
     static_files.py        safe static serving
     routes/                one module per feature: auth, accounts, folders, messages
+    static/img/            icon.svg (app icon + favicon, cropped to the plane, no background) and owc_logo_name.png
+                           (transparent, cropped to the text; both are shown at the same height in the top bar)
     static/js/             util/ (dom, format, icons+OWC logo, prefs, panes)
                            api.js (only fetch user) · store.js · router.js · actions.js (controller)
                            components/* (views: gutter, accountDialog, splitters, header, sidebar, list, reader)

@@ -1,5 +1,5 @@
 import { h, render } from '../util/dom.js';
-import { icon, logo } from '../util/icons.js';
+import { icon } from '../util/icons.js';
 
 const LAYOUTS = [
   ['right', 'Reading pane on the right'],
@@ -19,7 +19,9 @@ export function mountHeader(root, store, actions) {
 
   render(root,
     h('button', { class: 'icon-btn menu', 'aria-label': 'Toggle folder list', onClick: () => toggleFolders(actions) }, '☰'),
-    h('span', { class: 'brand' }, logo()),
+    h('span', { class: 'brand' },
+      h('img', { class: 'brand-icon', src: '/img/icon.svg', alt: '' }),
+      h('img', { class: 'brand-name', src: '/img/owc_logo_name.png', alt: 'Open Webmail Client' })),
     h('form', { class: 'search-form', onSubmit: (e) => { e.preventDefault(); actions.search(input.value.trim()); } }, input),
     h('button', { class: 'icon-btn', title: 'Refresh', onClick: () => actions.refresh() }, '↻'),
     h('div', { class: 'topbar-end' },

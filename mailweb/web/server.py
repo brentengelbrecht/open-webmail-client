@@ -57,7 +57,7 @@ def _handler_class(app: Application):
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
-        do_GET = do_POST = do_DELETE = do_HEAD = _handle
+        do_GET = do_POST = do_PATCH = do_DELETE = do_HEAD = _handle
 
     return Handler
 

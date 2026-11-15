@@ -1,5 +1,6 @@
 import { h, render } from '../util/dom.js';
 import { urls } from '../api.js';
+import { errorState } from './errorState.js';
 import { icon } from '../util/icons.js';
 import { spinner } from '../util/spinner.js';
 import { addressLabel, fileSize, fullDate, senderName } from '../util/format.js';
@@ -30,7 +31,7 @@ export function mountReader(root, store, actions) {
     // Full-width layout: the panel slides out over the list, so leave its last content in place until it is gone.
     if (layout === 'full' && message.status === 'idle') return;
     if (message.status === 'loading') return render(root, spinner('Loading message…'));
-    if (message.status === 'error') return render(root, h('p', { class: 'placeholder form-error' }, message.error));
+    if (message.status === 'error') return render(root, errorState(message.error));
     if (!message.data) return render(root, h('p', { class: 'placeholder' }, 'Select a message to read'));
     render(root, view(store.get().route.account, message.data, Boolean(message.imagesAllowed), actions));
   });

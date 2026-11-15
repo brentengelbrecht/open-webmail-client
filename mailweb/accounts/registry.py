@@ -39,6 +39,16 @@ class AccountRegistry:
             self._store.save(self._accounts.values())
         return account.info()
 
+    def rename(self, account_id: str, name: object) -> AccountInfo:
+        with self._lock:
+            account = self._accounts.get(account_id)
+            if account is None:
+                raise NotFound("unknown account")
+            renamed = account.renamed(name)
+            self._accounts[account_id] = renamed
+            self._store.save(self._accounts.values())
+            return renamed.info()
+
     def remove(self, account_id: str) -> None:
         """Forget an account completely: saved login, open connections and everything cached for it."""
         with self._lock:

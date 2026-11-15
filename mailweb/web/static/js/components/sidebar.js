@@ -1,9 +1,10 @@
 import { h, render } from '../util/dom.js';
 import { buildHash } from '../router.js';
+import { errorState } from './errorState.js';
 import { icon } from '../util/icons.js';
 import { spinner } from '../util/spinner.js';
 
-export function mountSidebar(root, store, actions) {
+export function mountSidebar(root, store, actions, { onEditAccount }) {
   store.select((s) => [s.folders, s.route.account, s.route.folder, s.foldersError, s.accounts, s.foldersLoading],
     ([folders, accountId, current, error, accounts, loading]) => {
       const account = accounts.find((a) => a.id === accountId);
@@ -11,13 +12,19 @@ export function mountSidebar(root, store, actions) {
         account && h('div', { class: 'account-bar' },
           h('span', { class: 'account-name', title: `${account.user}@${account.host}` }, account.name),
           h('button', {
+            class: 'icon-btn edit-account',
+            title: 'Change the display name',
+            'aria-label': `Rename account ${account.name}`,
+            onClick: () => onEditAccount(account),
+          }, icon('edit', 18)),
+          h('button', {
             class: 'icon-btn remove-account',
             title: 'Remove this account from the client (mail on the server is untouched)',
             'aria-label': `Remove account ${account.name}`,
             onClick: () => confirm(`Remove “${account.name}” from this client?\n\nIts saved login and everything cached for it will be erased. Mail on the server is not touched.`) && actions.removeAccount(account.id),
           }, icon('trash', 18))),
         loading && folders.length === 0 && spinner('Loading folders…', { small: true }),
-        error && h('p', { class: 'form-error' }, error),
+        error && errorState(error, { compact: true }),
         h('nav', {}, folders.map((folder) => {
           const parts = folder.name.split('/');
           return h('a', {

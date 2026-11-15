@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="403" height="271" viewBox="42 29 403 271" role="img" aria-labelledby="title desc">
+  <title id="title">Faceted blue and purple paper plane</title>
+  <desc id="desc">A stylized angular paper airplane made from overlapping cyan, blue, and violet gradient facets on a transparent background.</desc>
+  <defs>
+    <linearGradient id="top" x1="45" y1="145" x2="445" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00c4d7"/><stop offset=".48" stop-color="#16d5e3"/><stop offset="1" stop-color="#53c5ff"/>
+    </linearGradient>
+    <linearGradient id="rightWing" x1="330" y1="295" x2="445" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6648e9"/><stop offset=".48" stop-color="#b65cf2"/><stop offset="1" stop-color="#f58ae7"/>
+    </linearGradient>
+    <linearGradient id="centerBlue" x1="135" y1="170" x2="365" y2="270" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0879c8"/><stop offset=".52" stop-color="#0758c9"/><stop offset="1" stop-color="#453ce4"/>
+    </linearGradient>
+    <linearGradient id="deepBlue" x1="170" y1="130" x2="285" y2="245" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#075db5"/><stop offset="1" stop-color="#073a9c"/>
+    </linearGradient>
+    <linearGradient id="cyanFold" x1="130" y1="170" x2="180" y2="280" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00b9d1"/><stop offset="1" stop-color="#0879c9"/>
+    </linearGradient>
+    <linearGradient id="violetFacet" x1="245" y1="160" x2="335" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3673ee"/><stop offset="1" stop-color="#5b43e6"/>
+    </linearGradient>
+    <linearGradient id="leftFacet" x1="42" y1="145" x2="190" y2="215" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00b9d0"/><stop offset="1" stop-color="#0789c9"/>
+    </linearGradient>
+  </defs>
+  <!-- broad upper sheet -->
+  <path d="M42 144 L445 29 L132 176 Z" fill="url(#top)"/>
+  <path d="M42 144 L222 135 L132 176 Z" fill="#00b9ce" opacity=".72"/>
+  <path d="M222 135 L445 29 L132 176 Z" fill="#19c8e2" opacity=".30"/>
+  <!-- right triangular wing -->
+  <path d="M445 29 L332 300 L176 204 Z" fill="url(#rightWing)"/>
+  <path d="M445 29 L332 300 L268 168 Z" fill="#d77aef" opacity=".42"/>
+  <path d="M445 29 L268 168 L222 135 Z" fill="#5c39e8" opacity=".48"/>
+  <!-- central folded body -->
+  <path d="M132 176 L222 135 L268 168 L176 204 L149 280 Z" fill="url(#centerBlue)"/>
+  <path d="M222 135 L445 29 L268 168 Z" fill="#0759c8" opacity=".86"/>
+  <path d="M222 135 L250 122 L286 184 L268 168 Z" fill="#063f9e" opacity=".72"/>
+  <path d="M176 204 L268 168 L332 300 Z" fill="url(#violetFacet)"/>
+  <path d="M176 204 L268 168 L224 222 Z" fill="#0649b4" opacity=".9"/>
+  <path d="M224 222 L268 168 L332 300 Z" fill="#3157e1" opacity=".82"/>
+  <!-- left underside / tail fold -->
+  <path d="M132 176 L176 204 L149 280 Z" fill="url(#cyanFold)"/>
+  <path d="M176 204 L210 229 L149 280 Z" fill="#00a9cf"/>
+  <path d="M176 204 L210 229 L224 222 Z" fill="#13c7d9" opacity=".9"/>
+  <path d="M132 176 L222 135 L176 204 Z" fill="#0874bd" opacity=".58"/>
+  <path d="M149 280 L176 204 L210 229 Z" fill="#00b6d2" opacity=".55"/>
+</svg>

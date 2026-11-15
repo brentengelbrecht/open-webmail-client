@@ -146,6 +146,11 @@ export function createActions(store, api, env = browserEnv()) {
       store.set({ accounts: [...store.get().accounts, account] });
       navigate({ account: account.id });
     },
+    async renameAccount(id, name) {
+      const { account } = await api.renameAccount(id, name);
+      store.set({ accounts: store.get().accounts.map((a) => (a.id === id ? account : a)) });
+    },
+
     // Remove an account and erase what this page knows about it. The server is asked first; if it fails
     // nothing is wiped here. Order: values -> state -> page -> browser storage -> URL -> new page (new JS heap).
     async removeAccount(id) {
