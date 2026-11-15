@@ -1,0 +1,3 @@
+# Build-time requirements for the desktop app (the server's own requirement is in requirements.txt).
+-r requirements.txt
+pyinstaller

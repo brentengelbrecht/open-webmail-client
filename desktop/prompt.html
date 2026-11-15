@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Open Webmail Client</title>
+<style>
+/* Same tokens and card as the web UI (mailweb/web/static/css/app.css), so this window looks like its sign-in screen. */
+:root {
+  --bg: #f6f8fc; --panel: #fff; --text: #1f1f1f; --muted: #5f6368; --line: #e3e6ea; --accent: #0b57d0;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1b1c1f; --panel: #26272b; --text: #e8eaed; --muted: #9aa0a6; --line: #3c4043; --accent: #8ab4f8; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+button, input { font: inherit; color: inherit; }
+.login { height: 100%; display: grid; place-items: center; }
+.login-card { display: grid; gap: 12px; width: 320px; padding: 28px; background: var(--panel); border-radius: 12px; }
+.login-card h1 { margin: 0 0 8px; font-size: 22px; font-weight: 500; }
+.login-card input { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; }
+.login-card button { padding: 10px; border: 0; border-radius: 20px; background: var(--accent); color: #fff; cursor: pointer; }
+.login-card button.link { background: none; color: var(--accent); padding: 4px; }
+.login-card button:focus-visible, .login-card input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.muted { color: var(--muted); font-size: 12px; margin: 0; }
+.form-error { color: #d93025; margin: 0; }
+[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div class="login">
+  <form class="login-card" id="form">
+    <h1>Open Webmail Client</h1>
+    <p class="muted" id="intro"></p>
+    <p class="form-error" id="notice" role="alert"></p>
+    <input id="password" type="password" required autofocus>
+    <input id="repeat" type="password" placeholder="Repeat password" autocomplete="new-password" hidden>
+    <button type="submit" id="go"></button>
+    <p class="form-error" id="error" role="alert"></p>
+    <button type="button" class="link" id="reset" hidden>Forgot the password? Reset…</button>
+  </form>
+</div>
+<script src="prompt.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+{
+  "name": "open-webmail-client",
+  "productName": "Open Webmail Client",
+  "version": "0.1.0",
+  "description": "Desktop app for mailweb",
+  "main": "main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": {
+    "name": "Your Name",
+    "email": "you@example.com"
+  },
+  "scripts": {
+    "build:server": "python build_server.py",
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "build": {
+    "appId": "com.example.openwebmailclient",
+    "productName": "Open Webmail Client",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "prompt.html",
+      "prompt.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/server",
+        "to": "server"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network;Email",
+      "maintainer": "Your Name <you@example.com>"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
+  }
+}
