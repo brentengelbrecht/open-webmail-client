@@ -11,18 +11,20 @@ export function mountSidebar(root, store, actions, { onEditAccount }) {
       render(root,
         account && h('div', { class: 'account-bar' },
           h('span', { class: 'account-name', title: `${account.user}@${account.host}` }, account.name),
-          h('button', {
-            class: 'icon-btn edit-account',
-            title: 'Change the display name',
-            'aria-label': `Rename account ${account.name}`,
-            onClick: () => onEditAccount(account),
-          }, icon('edit', 18)),
-          h('button', {
-            class: 'icon-btn remove-account',
-            title: 'Remove this account from the client (mail on the server is untouched)',
-            'aria-label': `Remove account ${account.name}`,
-            onClick: () => confirm(`Remove “${account.name}” from this client?\n\nIts saved login and everything cached for it will be erased. Mail on the server is not touched.`) && actions.removeAccount(account.id),
-          }, icon('trash', 18))),
+          // The icons float over the right end of the row (out of the layout), so the name can use the whole width.
+          h('div', { class: 'account-actions' },
+            h('button', {
+              class: 'icon-btn edit-account',
+              title: 'Change the display name',
+              'aria-label': `Rename account ${account.name}`,
+              onClick: () => onEditAccount(account),
+            }, icon('edit', 18)),
+            h('button', {
+              class: 'icon-btn remove-account',
+              title: 'Remove this account from the client (mail on the server is untouched)',
+              'aria-label': `Remove account ${account.name}`,
+              onClick: () => confirm(`Remove “${account.name}” from this client?\n\nIts saved login and everything cached for it will be erased. Mail on the server is not touched.`) && actions.removeAccount(account.id),
+            }, icon('trash', 18)))),
         loading && folders.length === 0 && spinner('Loading folders…', { small: true }),
         error && errorState(error, { compact: true }),
         h('nav', {}, folders.map((folder) => {

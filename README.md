@@ -1,4 +1,4 @@
-<img width="520" height="229" alt="Open Webmail Client Logo" src="https://github.com/user-attachments/assets/328b9834-92a1-42b9-917f-f4ec8ce079a1" />
+# Open Webmail Client
 
 A read-only, Gmail-style web client for [`imap_archive_server.py`](../imap_archive_server.py).
 Python standard library plus `cryptography` (for the accounts file) on the server, plain ES modules in the browser. No build step.
