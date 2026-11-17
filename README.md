@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="Open Webmail Client" width="420">
+</p>
+
 # Open Webmail Client
 
 A read-only, Gmail-style web client for [`imap_archive_server.py`](../imap_archive_server.py).
