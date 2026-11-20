@@ -22,6 +22,7 @@ function pager(data, actions) {
   const last = Math.min(data.total, data.page * data.page_size);
   return h('div', { class: 'pager' },
     h('span', {}, `${first}–${last} of ${data.total}`),
+    h('button', { class: 'icon-btn', disabled: data.page <= 1, title: 'Newest', 'aria-label': 'Newest', onClick: () => actions.goToPage(1) }, '«'),
     h('button', { class: 'icon-btn', disabled: data.page <= 1, title: 'Newer', 'aria-label': 'Newer', onClick: () => actions.goToPage(data.page - 1) }, '‹'),
     h('button', { class: 'icon-btn', disabled: data.page >= data.pages, title: 'Older', 'aria-label': 'Older', onClick: () => actions.goToPage(data.page + 1) }, '›'),
     h('button', { class: 'icon-btn', disabled: data.page >= data.pages, title: 'Oldest', 'aria-label': 'Oldest', onClick: () => actions.goToPage(data.pages) }, '»'));
