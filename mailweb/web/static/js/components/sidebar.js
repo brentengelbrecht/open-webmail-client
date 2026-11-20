@@ -10,6 +10,7 @@ export function mountSidebar(root, store, actions, { onEditAccount }) {
       const account = accounts.find((a) => a.id === accountId);
       render(root,
         account && h('div', { class: 'account-bar' },
+          account.tls && h('span', { class: 'account-lock', title: 'Connection to the mail server is encrypted (TLS)', role: 'img', 'aria-label': 'Encrypted connection (TLS)' }, icon('lock', 16)),
           h('span', { class: 'account-name', title: `${account.user}@${account.host}` }, account.name),
           // The icons float over the right end of the row (out of the layout), so the name can use the whole width.
           h('div', { class: 'account-actions' },
