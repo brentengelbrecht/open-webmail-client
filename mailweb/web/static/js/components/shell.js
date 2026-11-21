@@ -34,7 +34,7 @@ export function mountShell(root, store, actions) {
     const [gutter, header, sidebar, list, reader] = parts;
     const dialog = createAccountDialog({ onAdd: (details) => actions.addAccount(details) });
     const splitters = createSplitters({ sidebar, list }, scope, actions);
-    const editDialog = createEditAccountDialog({ onSave: (id, changes) => actions.updateAccount(id, changes) });
+    const editDialog = createEditAccountDialog({ onSave: (id, changes, options) => actions.updateAccount(id, changes, options) });
     const layout = h('div', { class: 'layout' }, parts, splitters.elements, dialog.element, editDialog.element);
     render(root, layout);
 
@@ -43,7 +43,7 @@ export function mountShell(root, store, actions) {
     const onAddAccount = () => dialog.open();
     mountGutter(gutter, scope, actions, { onAddAccount });
     mountHeader(header, scope, actions);
-    mountSidebar(sidebarBox, scope, actions, { onEditAccount: (account) => editDialog.open(account) });
+    mountSidebar(sidebarBox, scope, actions, { onEditAccount: (account) => editDialog.open(account, store.get().accountIcons[account.id] ?? null) });
     mountMessageList(list, scope, actions, { onAddAccount });
     mountReader(reader, scope, actions);
 

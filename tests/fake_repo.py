@@ -56,3 +56,35 @@ def build(root: Path) -> Path:
     db.commit()
     db.close()
     return repo
+
+
+def build_bulk(root: Path, count: int) -> Path:
+    """A big repository (for performance tests): `count` ~3 KB messages in one INBOX, newest last."""
+    repo = root / "bulk%40example.com"
+    shard = repo / "messages" / "000001"
+    shard.mkdir(parents=True)
+    (repo / "repository.json").write_text(json.dumps({
+        "application": "gmail-local-repository", "schema_version": 2, "mailbox": "bulk@example.com",
+        "created_at": "2026-11-04T12:33:04.310412+00:00"}))
+    db = sqlite3.connect(repo / "repository.db")
+    db.executescript("""
+        CREATE TABLE folders(folder_id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE folder_messages(folder_id INTEGER, message_id INTEGER);
+        CREATE TABLE message_shards(shard_id INTEGER PRIMARY KEY, directory_name TEXT);
+        CREATE TABLE messages(message_id INTEGER PRIMARY KEY, gm_id TEXT, shard_id INTEGER, filename TEXT,
+            message_size INTEGER, sha256 TEXT, internal_date TEXT, imported_at TEXT, is_read INTEGER, is_starred INTEGER);
+        INSERT INTO message_shards VALUES (1, '000001');
+        INSERT INTO folders VALUES (1, 'INBOX');
+    """)
+    filler = ("The quick brown fox jumps over the lazy dog. " * 60).encode()
+    for i in range(1, count + 1):
+        raw = (f"From: Sender {i} <s{i}@example.com>\r\nTo: me@example.com\r\nSubject: Message number {i}\r\n"
+               f"Date: Tue, 03 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n").encode() + filler
+        (shard / f"g{i}.eml").write_bytes(raw)
+        db.execute("INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?)",
+                   (i, f"g{i}", 1, f"g{i}.eml", len(raw), hashlib.sha256(raw).hexdigest(), str(1793000000000 + i * 1000),
+                    "2026-11-04T12:00:00+00:00", 1, 0))
+        db.execute("INSERT INTO folder_messages VALUES (1, ?)", (i,))
+    db.commit()
+    db.close()
+    return repo

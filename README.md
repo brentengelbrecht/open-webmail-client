@@ -46,7 +46,8 @@ To use it from other devices set `[web] host = 0.0.0.0` and enable HTTPS (`cert`
 the login password and your mail otherwise cross the network in clear text.
 
 Tests: `python3 -m unittest discover -s tests` spawns the real archive server on a synthetic repository
-(set `IMAP_SERVER_PY` if the script is not in the parent folder); `node --test tests/actions.test.mjs tests/panes.test.mjs` checks the
+(set `IMAP_SERVER_PY` if the script is not in the parent folder; both the single-account and the multi-account
+configuration formats of the server are understood); `node --test tests/*.test.mjs` checks the
 front-end controller logic (account switching, routing, session expiry, pane sizing) without a browser.
 
 ## Features
@@ -55,7 +56,7 @@ Multiple accounts (gutter with **+** and one icon per account; pencil and trash 
 name above the folder list, to edit its name and connection settings or remove it; switching clears the old mailbox and loads the new one),
 folder list with unread counts, newest-first message list with paging, message view (HTML or plain text),
 attachment download, `.eml` download, reading pane to the right of the list, below it, or slid in over a full-width list Gmail style (three icons at the
-far right of the top bar; in the third layout the back arrow or Esc slides the message out again), a hamburger button that slides the folder list away and back (remembered; an overlay on phones), drag handles on the pane dividers (also arrow keys when focused; double-click resets; sizes and
+far right of the top bar; in the third layout the back arrow or Esc slides the message out again), a custom icon per account (any image or SVG, stored in the browser), a hamburger button that slides the folder list away and back (remembered; an overlay on phones), drag handles on the pane dividers (also arrow keys when focused; double-click resets; sizes and
 layout are remembered in the browser), per-message remote images (or always, with `[mail] load_remote_images = true`),
 errors shown as a large pale icon with the message in the pane that failed, automatic sign-out when the session ends (`[web] session_minutes`, default 60), search with Gmail-style operators
 (`from: to: cc: subject: is:unread|read|starred after:YYYY-MM-DD before:YYYY-MM-DD`, quoted phrases, free words).
@@ -146,6 +147,45 @@ sorts by date, and only fetches headers for the 50 messages on screen (cached fo
   new settings, and only if they work drops the old connection and loads the mailbox again; a typo leaves the working
   connection untouched and shows the error in the dialog. **Cancel** or Esc changes nothing. The saved password is never
   sent to the browser.
+
+## Account order
+
+Drag an account's icon up or down in the left gutter to reorder the accounts (a press that moves less than 5 px is
+still a click that selects the account). The others slide aside to make room; the **+** stays on top. Alt+Up / Alt+Down
+moves the focused icon one place from the keyboard. The new order is shown at once and saved on the server
+(`POST /api/accounts/order`, kept in the encrypted accounts file), so it is the same in every browser; if saving fails the
+saved order comes back. Accounts added from elsewhere meanwhile are never lost: unmentioned accounts keep their relative
+order after the mentioned ones.
+
+## Account icons
+
+In the edit dialog (pencil on the account name) the account's icon is shown with a pencil that appears on hover.
+Click it to pick an image or an `.svg` (read in the browser as a `data:` URL, because the app's Content-Security-Policy
+refuses `blob:` images; an SVG without a size or namespace is given both first): it is cropped to a centred square, resized to 128x128 and kept as a small
+WebP/PNG data URL in this browser's localStorage under `mailweb.icon.<account id>`, then shown in the left gutter instead
+of the coloured letter. **Use default icon** goes back to the letter. Nothing about the icon is sent to the server, so
+icons are per browser and are not shared between devices. Cancel discards a chosen icon; if the server refuses the other
+changes, or the browser cannot store the icon (storage full or disabled), the previous icon is kept and the dialog shows
+the error. Removing an account (trash icon) overwrites and deletes that account's icon entry along with the rest of its
+browser data; other accounts' icons are not touched.
+
+## Search
+
+Free words search the subject and the whole message (`OR SUBJECT "x" TEXT "x"`); `from:`, `to:`, `cc:`, `subject:`,
+`is:`, `after:` and `before:` narrow it. How long a search takes depends on the server: Gmail answers in seconds, but
+`imap_archive_server` reads and parses **every message in the folder** for a text search, which on a Raspberry Pi with a
+large folder can take minutes.
+
+* Searches have their own timeout (`[mail] imap_search_timeout`, default 600 s) instead of the 30 s used for other
+  commands. A timeout is never retried (a retry only doubled the wait and the server's work), and a failed connection is
+  closed immediately.
+* Results are cached per folder and query, so paging through them does not search again; the refresh button forgets them.
+* The X in the search box stops a running search at once.
+* **Server side:** the original `imap_archive_server.py` ran the whole search inside its event loop, so while it ran
+  *every* other connection to that server (including other mailboxes) stalled until the client's own timeout, and a
+  search the client had given up on kept running to the end. the `imap_archive_server.py` delivered next to this zip is your server with a
+  small fix (`imap_archive_server.search-fix.diff` shows the change): searches work in 50 ms slices, letting other
+  connections run in between, and stop as soon as the client disconnects.
 
 ## HTTPS for the web UI
 

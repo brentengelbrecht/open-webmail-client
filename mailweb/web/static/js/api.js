@@ -41,6 +41,7 @@ export const api = {
   accounts: () => request('/api/accounts'),
   addAccount: (details) => request('/api/accounts', { method: 'POST', body: details }),
   updateAccount: (id, changes) => request('/api/accounts', { method: 'PATCH', body: { id, ...changes } }),
+  reorderAccounts: (order) => request('/api/accounts/order', { method: 'POST', body: { order } }),
   cancel: (account) => request('/api/accounts/cancel', { method: 'POST', params: { account } }),
   removeAccount: (id) => request('/api/accounts', { method: 'DELETE', params: { id } }),
   session: () => request('/api/session'),

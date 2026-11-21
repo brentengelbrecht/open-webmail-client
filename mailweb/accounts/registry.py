@@ -5,7 +5,7 @@ import gc
 import threading
 
 from ..config import MailSettings
-from ..errors import NotFound
+from ..errors import BadRequest, NotFound
 from ..imap import ImapGateway
 from ..mail import MailService
 from .models import Account, AccountInfo
@@ -20,6 +20,9 @@ class AccountRegistry:
         self._accounts: dict[str, Account] = {a.id: a for a in store.load()}
         self._services: dict[str, tuple[ImapGateway, MailService]] = {}
 
+    def _endpoint(self, account: Account):
+        return account.endpoint(self._settings.imap_timeout, self._settings.imap_search_timeout)
+
     def list(self) -> list[AccountInfo]:
         with self._lock:
             return [a.info() for a in self._accounts.values()]
@@ -27,7 +30,7 @@ class AccountRegistry:
     def add(self, payload: dict) -> AccountInfo:
         """Validate, prove the credentials work by connecting, then save."""
         account = Account.from_payload(payload)
-        gateway = ImapGateway(account.endpoint(self._settings.imap_timeout), self._settings.imap_connections)
+        gateway = ImapGateway(self._endpoint(account), self._settings.imap_connections)
         try:
             gateway.run(lambda imap: imap.list_folders())     # raises UpstreamError with the reason
         except Exception:
@@ -48,11 +51,10 @@ class AccountRegistry:
         if old is None:
             raise NotFound("unknown account")
         new = old.updated(changes)
-        timeout = self._settings.imap_timeout
-        reconnect = new.endpoint(timeout) != old.endpoint(timeout)
+        reconnect = self._endpoint(new) != self._endpoint(old)
         gateway = None
         if reconnect:
-            gateway = ImapGateway(new.endpoint(timeout), self._settings.imap_connections)
+            gateway = ImapGateway(self._endpoint(new), self._settings.imap_connections)
             try:
                 gateway.run(lambda imap: imap.list_folders())        # raises UpstreamError with the reason
             except Exception:
@@ -75,6 +77,20 @@ class AccountRegistry:
             old_gateway.close()                                      # cancels anything still running on it
         gc.collect()
         return new.info(), reconnect
+
+    def reorder(self, ids: list) -> list[AccountInfo]:
+        """Put the accounts in the given order. Ids that are not accounts are ignored, and accounts that are not
+        mentioned (added meanwhile, say) keep their relative order after the mentioned ones, so nothing is lost."""
+        if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+            raise BadRequest("order must be a list of account ids")
+        with self._lock:
+            wanted = [i for i in dict.fromkeys(ids) if i in self._accounts]
+            rest = [i for i in self._accounts if i not in wanted]
+            ordered = {i: self._accounts[i] for i in wanted + rest}
+            if list(ordered) != list(self._accounts):
+                self._accounts = ordered
+                self._store.save(self._accounts.values())
+            return [a.info() for a in self._accounts.values()]
 
     def cancel(self, account_id: str) -> None:
         """Stop whatever is running or queued for this account right now (it stays connected)."""
@@ -105,7 +121,7 @@ class AccountRegistry:
             if account is None:
                 raise NotFound("unknown account")
             if account_id not in self._services:
-                gateway = ImapGateway(account.endpoint(self._settings.imap_timeout), self._settings.imap_connections)
+                gateway = ImapGateway(self._endpoint(account), self._settings.imap_connections)
                 self._services[account_id] = (gateway, MailService(gateway, self._settings))
             return self._services[account_id][1]
 

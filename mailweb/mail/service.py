@@ -30,6 +30,7 @@ class MailService:
         ttl = settings.index_ttl_seconds
         self._folders: Cache = Cache(maxsize=1, ttl=ttl)
         self._indexes: Cache = Cache(maxsize=16, ttl=ttl)
+        self._searches: Cache = Cache(maxsize=32, ttl=ttl)          # (folder, query) -> uids; paging must not re-search
         self._headers: Cache = Cache(maxsize=5000)          # immutable archive: no ttl
         self._contents: Cache = Cache(maxsize=settings.message_cache)
 
@@ -37,7 +38,7 @@ class MailService:
         """Drop everything cached for this mailbox (folder list, indexes, headers, parsed messages)."""
         for content in self._contents.values():
             content.wipe()
-        for cache in (self._folders, self._indexes, self._headers, self._contents):
+        for cache in (self._folders, self._indexes, self._searches, self._headers, self._contents):
             cache.clear()
 
     @property
@@ -63,11 +64,11 @@ class MailService:
         if refresh:
             self._indexes.discard(folder)
             self._folders.clear()
+            self._searches.clear()
         metas = self._index(folder).metas
         query = query.strip()
         if query:
-            criteria = build_criteria(query)
-            hits = set(self._gw.run(lambda imap: self._search(imap, folder, criteria)))
+            hits = self._search_hits(folder, query)
             metas = tuple(m for m in metas if m.uid in hits)
         size = self._settings.page_size
         pages = max(1, -(-len(metas) // size))
@@ -87,6 +88,15 @@ class MailService:
         if cached is not None:
             return cached
         return self._indexes.set(folder, self._gw.run(lambda imap: build_index(imap, folder)))
+
+    def _search_hits(self, folder: str, query: str) -> frozenset:
+        key = (folder, query)
+        cached = self._searches.get(key)
+        if cached is not None:
+            return cached
+        criteria = build_criteria(query)                  # raises BadRequest for a bad operator before any IMAP work
+        hits = frozenset(self._gw.run(lambda imap: self._search(imap, folder, criteria)))
+        return self._searches.set(key, hits)              # a cancelled or failed search raised above: nothing cached
 
     @staticmethod
     def _search(imap: ImapConnection, folder: str, criteria: list[bytes]) -> list[int]:

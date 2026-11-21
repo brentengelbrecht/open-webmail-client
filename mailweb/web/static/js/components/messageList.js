@@ -48,6 +48,6 @@ export function mountMessageList(root, store, actions, { onAddAccount }) {
       // idle or loading: the mailbox is still being opened (folders first, then the message list)
       if (foldersError) return render(root, errorState(foldersError));
       if (!foldersLoading && folders.length === 0) return render(root, h('p', { class: 'placeholder' }, 'This account has no folders.'));
-      return render(root, spinner(query ? 'Searching…' : 'Loading mailbox…'));
+      return render(root, spinner(query ? 'Searching… on a big folder this can take a while. Click ✕ in the search box to stop.' : 'Loading mailbox…'));
     });
 }

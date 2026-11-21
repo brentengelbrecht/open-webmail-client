@@ -1,8 +1,9 @@
 // Controller: turns route changes and user intents into API calls and store updates.
 import { navigate, parseHash, replaceRoute } from './router.js';
 import { DEFAULT_PANES } from './util/panes.js';
-import { savePref } from './util/prefs.js';
-import { overwriteDeep, overwriteDom, scrubStorage } from './util/scrub.js';
+import { iconKey, isIconData } from './util/accountVisual.js';
+import { loadPref, removePref, savePref } from './util/prefs.js';
+import { mask, overwriteDeep, overwriteDom, scrubStorage } from './util/scrub.js';
 
 const IDLE = { status: 'idle', data: null, error: null };
 
@@ -15,6 +16,9 @@ export const browserEnv = () => ({
   clearUrl: () => history.replaceState(null, '', location.pathname),
   reload: () => location.reload(),
 });
+
+const loadIcons = (accounts) => Object.fromEntries(
+  accounts.map((account) => [account.id, loadPref(iconKey(account.id), null)]).filter(([, value]) => isIconData(value)));
 
 export function createActions(store, api, env = browserEnv()) {
   let listKey = null;
@@ -119,7 +123,7 @@ export function createActions(store, api, env = browserEnv()) {
       const { accounts } = await api.accounts();
       clearTimeout(sessionTimer);
       if (expiresIn > 0) sessionTimer = setTimeout(() => this.expire(SESSION_ENDED), expiresIn * 1000);
-      store.set({ authenticated: true, booting: false, accounts, loginNotice: '', foldersLoading: accounts.length > 0 });
+      store.set({ authenticated: true, booting: false, accounts, accountIcons: loadIcons(accounts), loginNotice: '', foldersLoading: accounts.length > 0 });
       await this.applyRoute(route);
     },
 
@@ -168,6 +172,21 @@ export function createActions(store, api, env = browserEnv()) {
     search: (q) => navigate({ account: accountId(), folder: store.get().route.folder, q, page: 1 }),
     selectAccount: (id) => navigate({ account: id }),
 
+    // Put the accounts in a new order (drag in the gutter). Shown at once, then saved on the server; if saving fails
+    // the saved order is shown again.
+    async reorderAccounts(ids) {
+      const before = store.get().accounts;
+      const byId = new Map(before.map((account) => [account.id, account]));
+      store.set({ accounts: [...ids.map((id) => byId.get(id)).filter(Boolean), ...before.filter((account) => !ids.includes(account.id))] });
+      try {
+        const { accounts } = await api.reorderAccounts(ids);
+        store.set({ accounts });
+      } catch (error) {
+        if (error?.name !== 'AbortError') console.error('could not save the account order:', error.message);
+        store.set({ accounts: before });
+      }
+    },
+
     // The X in the search box: stop the search that is running (in the browser and on the server), then show the
     // unfiltered list again. We wait for the server to confirm the cancel so it cannot hit the list request that follows.
     async clearSearch() {
@@ -186,14 +205,36 @@ export function createActions(store, api, env = browserEnv()) {
     },
     // Change an account's name and/or connection settings. If the server reconnected (the connection settings
     // changed), everything shown for the old connection is dropped and the mailbox is loaded again from the new one.
-    async updateAccount(id, changes) {
-      const { account, reconnected } = await api.updateAccount(id, changes);
+    async updateAccount(id, changes, { icon } = {}) {
+      // `icon`: undefined = leave as is, a data URL = new custom icon, null = back to the default letter icon.
+      // It is stored first (that can fail locally, e.g. storage full) and put back if the server then refuses the change.
+      const previousIcon = store.get().accountIcons[id] ?? null;
+      if (icon !== undefined) this.setAccountIcon(id, icon);
+      let result;
+      try {
+        result = await api.updateAccount(id, changes);
+      } catch (error) {
+        if (icon !== undefined) this.setAccountIcon(id, previousIcon);
+        throw error;
+      }
+      const { account, reconnected } = result;
       store.set({ accounts: store.get().accounts.map((a) => (a.id === id ? account : a)) });
       if (reconnected && store.get().route.account === id) {
         clearMailbox({ cancelServer: false });          // the server already dropped the old connection and its work
         await this.applyRoute({ account: id, folder: '', page: 1, q: '', uid: null });
       }
       return account;
+    },
+
+    // A custom icon for the account in the gutter, kept in this browser only. null returns to the default.
+    setAccountIcon(id, dataUrl) {
+      if (dataUrl === null) removePref(iconKey(id));
+      else if (!isIconData(dataUrl) || !savePref(iconKey(id), dataUrl)) {
+        throw new Error('The icon could not be stored: browser storage is full or disabled.');
+      }
+      const icons = { ...store.get().accountIcons };
+      if (dataUrl === null) delete icons[id]; else icons[id] = dataUrl;
+      store.set({ accountIcons: icons });
     },
 
     // Remove an account and erase what this page knows about it. The server is asked first; if it fails
@@ -207,12 +248,14 @@ export function createActions(store, api, env = browserEnv()) {
 
       const needles = [account.id, account.name, account.host, account.user];
       const remaining = state.accounts.filter((a) => a.id !== id);
+      const { [id]: iconData, ...otherIcons } = state.accountIcons;
+      if (iconData) state.accountIcons[id] = mask(iconData);          // overwrite the held copy before it is released
       if (state.route.account === id) {
         [state.folders, state.list.data, state.message.data, state.route].forEach((value) => overwriteDeep(value));
       }
       overwriteDeep(account);
       listKey = messageKey = mailboxAccount = null;
-      store.set({ accounts: remaining, folders: [], foldersError: null, foldersLoading: false, list: IDLE, message: IDLE,
+      store.set({ accounts: remaining, accountIcons: otherIcons, folders: [], foldersError: null, foldersLoading: false, list: IDLE, message: IDLE,
                   route: { account: '', folder: '', page: 1, q: '', uid: null } });
 
       env.scrubDom();

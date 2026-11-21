@@ -9,10 +9,11 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 import fake_repo  # noqa: E402
-from harness import start_server  # noqa: E402
+from harness import HangingImapServer, server_allows_spaces_in_logins, start_server  # noqa: E402
 from mailweb.accounts import AccountRegistry, AccountStore  # noqa: E402
 from mailweb.config import MailSettings  # noqa: E402
 from mailweb.errors import UpstreamError  # noqa: E402
+from mailweb.imap import ImapEndpoint, ImapGateway  # noqa: E402
 
 CASES = [
     ("you@example.com", "secret"),
@@ -29,6 +30,8 @@ class Login(unittest.TestCase):
             repo = fake_repo.build(Path(tmp))
             for user, password in CASES:
                 with self.subTest(user=user):
+                    if " " in user and not server_allows_spaces_in_logins():
+                        continue                       # this server refuses such names; see the quoting test below
                     server, port = start_server(Path(tmp), repo, user, password)
                     registry = AccountRegistry(AccountStore(Path(tmp) / f"a{port}.json", "pw"), MailSettings())
                     try:
@@ -40,6 +43,14 @@ class Login(unittest.TestCase):
                         registry.close()
                         server.terminate()
                         server.wait(5)
+
+    def test_user_names_and_passwords_are_sent_as_quoted_utf8_strings(self):
+        server = HangingImapServer()
+        self.addCleanup(server.sock.close)
+        gateway = ImapGateway(ImapEndpoint("127.0.0.1", server.port, "us er@example.com", 'p\u00e4ss "w"', timeout=5), size=1)
+        self.addCleanup(gateway.close)
+        gateway.run(lambda imap: None)                    # connecting is enough: it logs in
+        self.assertEqual(server.logins, ['LOGIN "us er@example.com" "p\u00e4ss \\"w\\""'])
 
     def test_connection_refused_is_explained_and_not_retried(self):
         import time

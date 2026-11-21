@@ -23,6 +23,10 @@ def register(router, ctx):
         account, reconnected = registry.update(str(body.get("id", "")), changes)
         return json_response({"account": account, "reconnected": reconnected})
 
+    @router.route("POST", "/api/accounts/order")
+    def reorder_accounts(request):
+        return json_response({"accounts": registry.reorder(request.json().get("order"))})
+
     @router.route("POST", "/api/accounts/cancel")
     def cancel_work(request):
         registry.cancel(request.required("account"))

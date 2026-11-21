@@ -8,7 +8,7 @@ import { loadPref } from './util/prefs.js';
 
 const idle = { status: 'idle', data: null, error: null };
 const store = createStore({
-  booting: true, authenticated: false, loginNotice: '', foldersLoading: false, accounts: [], folders: [], foldersError: null,
+  booting: true, authenticated: false, loginNotice: '', foldersLoading: false, accounts: [], accountIcons: {}, folders: [], foldersError: null,
   route: parseHash(), list: idle, message: idle,
   layout: ['right', 'bottom', 'full'].includes(loadPref('layout', 'right')) ? loadPref('layout', 'right') : 'right',
   sidebarCollapsed: loadPref('sidebarCollapsed', false) === true,

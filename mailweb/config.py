@@ -41,6 +41,7 @@ class MailSettings:
     index_ttl_seconds: int = _opt(600, lo=1, hi=86400)
     imap_timeout: int = _opt(30, lo=1, hi=600)
     imap_connections: int = _opt(3, lo=1, hi=8)
+    imap_search_timeout: int = _opt(600, lo=10, hi=3600)
     load_remote_images: bool = False
 
 

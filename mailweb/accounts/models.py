@@ -34,8 +34,8 @@ class Account:
     def info(self) -> AccountInfo:
         return AccountInfo(self.id, self.name, self.host, self.port, self.user, self.tls, self.tls_verify)
 
-    def endpoint(self, timeout: int) -> ImapEndpoint:
-        return ImapEndpoint(self.host, self.port, self.user, self.password, self.tls, self.tls_verify, timeout)
+    def endpoint(self, timeout: int, search_timeout: int = 600) -> ImapEndpoint:
+        return ImapEndpoint(self.host, self.port, self.user, self.password, self.tls, self.tls_verify, timeout, search_timeout)
 
     MAX_NAME = 80
 

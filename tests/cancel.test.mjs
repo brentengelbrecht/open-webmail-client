@@ -30,7 +30,7 @@ function setup({ hang = [], cancelDelay = 0 } = {}) {
     cancel: async (account) => { log.push(`cancel:${account}:sent`); await new Promise((r) => setTimeout(r, cancelDelay)); log.push(`cancel:${account}:confirmed`); return {}; },
     updateAccount: async (id, changes) => ({ account: { id, name: 'Edited', host: changes.host ?? 'h', user: 'u' }, reconnected: 'host' in changes }),
   };
-  const store = createStore({ booting: false, authenticated: true, loginNotice: '', accounts: [A, B], folders: [], foldersError: null,
+  const store = createStore({ booting: false, authenticated: true, loginNotice: '', accounts: [A, B], accountIcons: {}, folders: [], foldersError: null,
     foldersLoading: false, route: parseHash(''), list: idle, message: idle, layout: 'right', sidebarCollapsed: false,
     panes: { sidebar: 240, listWidth: 480, listHeight: 320 } });
   const env = { scrubDom() {}, storages: () => [], clearUrl() {}, reload() {} };

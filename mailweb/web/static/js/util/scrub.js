@@ -25,7 +25,9 @@ export function scrubStorage(storage, needles) {
     const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i));
     for (const key of keys) {
       const value = storage.getItem(key) ?? '';
-      if (wanted.some((n) => key.includes(n) || value.includes(n))) {
+      // Icon values are base64 image data: only their key says which account they belong to.
+      const opaque = key.startsWith('mailweb.icon.');
+      if (wanted.some((n) => key.includes(n) || (!opaque && value.includes(n)))) {
         storage.setItem(key, mask(value));      // overwrite first...
         storage.removeItem(key);                // ...then release
         removed += 1;

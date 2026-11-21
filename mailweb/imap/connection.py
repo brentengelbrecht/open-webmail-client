@@ -31,6 +31,7 @@ class ImapEndpoint:
     tls: bool = False
     tls_verify: bool = True
     timeout: int = 30
+    search_timeout: int = 600
 
 
 def _reason(exc: Exception) -> str:
@@ -140,10 +141,12 @@ class ImapConnection:
                 pass
 
     def reset(self) -> None:
+        """Drop the connection immediately. (No LOGOUT: on a connection in trouble that would wait for the very
+        server that is not answering.)"""
         client, self._client, self._selected = self._client, None, None
         if client is not None:
             try:
-                client.logout()
+                client.shutdown()
             except Exception:
                 pass
 
@@ -210,9 +213,20 @@ class ImapConnection:
         if any(not part.isascii() for part in criteria):
             args += [b"CHARSET", b"UTF-8"]
         args += criteria or [b"ALL"]
-        typ, data = self._client.uid("SEARCH", *args)
+        # A search may legitimately take far longer than any other command, so it gets its own timeout.
+        self._set_timeout(self._endpoint.search_timeout)
+        try:
+            typ, data = self._client.uid("SEARCH", *args)
+        finally:
+            self._set_timeout(self._endpoint.timeout)
         self._check(typ, data, "SEARCH")
         return [int(n) for n in (data[0] or b"").split()]
+
+    def _set_timeout(self, seconds: int) -> None:
+        try:
+            self._client.sock.settimeout(seconds)
+        except Exception:                      # the connection was closed under us (cancelled): nothing to restore
+            pass
 
     def uid_fetch(self, uid_set: str, items: str) -> list[FetchRecord]:
         typ, data = self._client.uid("FETCH", uid_set, items)
@@ -310,6 +324,11 @@ class ImapGateway:
                 if self._epoch != epoch:      # the failure is the interruption itself: do not retry
                     conn.reset()
                     raise Cancelled("cancelled") from exc
+                if isinstance(exc, (socket.timeout, TimeoutError)):
+                    conn.reset()
+                    raise UpstreamError("The IMAP server did not answer in time. On a large folder a search can take a "
+                                        "long time: try a narrower one (from:, subject:, after:), or raise "
+                                        "imap_search_timeout in mailweb.ini.") from exc
                 if isinstance(exc, TRANSIENT):
                     log.warning("IMAP connection problem (attempt %d): %s", attempt, exc)
                     conn.reset()

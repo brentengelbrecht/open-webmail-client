@@ -1,5 +1,4 @@
 """cancel() must stop a running IMAP call at once (over a real socket) and never retry it."""
-import socket
 import sys
 import threading
 import time
@@ -8,52 +7,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
 
+from harness import HangingImapServer  # noqa: E402
 from mailweb.errors import Cancelled  # noqa: E402
 from mailweb.imap import ImapEndpoint, ImapGateway  # noqa: E402
-
-
-class HangingImapServer:
-    """Greets, logs in, then goes silent when asked for LIST (like a very slow server)."""
-
-    def __init__(self):
-        self.sock = socket.socket()
-        self.sock.bind(("127.0.0.1", 0))
-        self.sock.listen()
-        self.port = self.sock.getsockname()[1]
-        self.list_requests = 0
-        self.closed_by_client = threading.Event()
-        self.got_list = threading.Event()
-        threading.Thread(target=self._accept, daemon=True).start()
-
-    def _accept(self):
-        while True:
-            try:
-                conn, _ = self.sock.accept()
-            except OSError:
-                return
-            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
-
-    def _serve(self, conn):
-        f = conn.makefile("rwb", buffering=0)
-        f.write(b"* OK ready\r\n")
-        while True:
-            line = f.readline()
-            if not line:
-                self.closed_by_client.set()
-                return
-            tag, _, rest = line.decode().strip().partition(" ")
-            command = rest.split(" ")[0].upper()
-            if command == "CAPABILITY":
-                f.write(b"* CAPABILITY IMAP4rev1\r\n" + f"{tag} OK done\r\n".encode())
-            elif command == "LOGIN":
-                f.write(f"{tag} OK logged in\r\n".encode())
-            elif command == "LIST":
-                self.list_requests += 1
-                self.got_list.set()                      # ...and never answer
-            elif command == "LOGOUT":
-                f.write(f"{tag} OK bye\r\n".encode())
-                return
 
 
 class Cancel(unittest.TestCase):

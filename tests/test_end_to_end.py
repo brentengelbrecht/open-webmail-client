@@ -90,6 +90,14 @@ class EndToEnd(unittest.TestCase):
         self.assertTrue(logo.body.startswith(b"\x89PNG"))
         self.assertIn(b'rel="icon"', self.get("/", authed=False).body)
 
+    def test_the_policy_allows_the_data_urls_the_icon_picker_uses_and_no_blob_urls(self):
+        policy = self.get("/", authed=False).headers["Content-Security-Policy"]
+        img_src = next(part for part in policy.split(";") if part.strip().startswith("img-src"))
+        self.assertIn("data:", img_src)
+        self.assertNotIn("blob:", img_src)
+        loader = self.get("/js/util/iconImage.js", authed=False).body.decode()
+        self.assertNotIn("createObjectURL", loader)
+
     def test_folders(self):
         names = [f["name"] for f in self.j("/api/folders")["folders"]]
         self.assertEqual(names, ["INBOX", "Réunions/2023"])
@@ -269,6 +277,55 @@ class EndToEnd(unittest.TestCase):
         finally:
             self._delete(plain)
             self._delete(custom)
+
+    def test_paging_through_search_results_does_not_search_again(self):
+        from unittest import mock
+        from mailweb.mail.service import MailService
+        service = self.registry.service(self.account)
+        original = MailService._search
+        calls = []
+
+        def counting(imap, folder, criteria):
+            calls.append(criteria)
+            return original(imap, folder, criteria)
+        with mock.patch.object(MailService, "_search", staticmethod(counting)):
+            first = self.j("/api/messages", folder="INBOX", q="Hello")
+            self.j("/api/messages", folder="INBOX", q="Hello", page=1)
+            self.j("/api/messages", folder="INBOX", q="Hello", page=2)         # beyond the end: clamped, still no new search
+            self.assertEqual(len(calls), 1)
+            self.j("/api/messages", folder="INBOX", q="Older")                  # a different query does search
+            self.assertEqual(len(calls), 2)
+            self.j("/api/messages", folder="INBOX", q="Hello", refresh=1)       # refresh forgets cached results
+            self.assertEqual(len(calls), 3)
+        self.assertEqual(first["total"], 1)
+        service.purge()
+
+    def test_account_order_can_be_changed_and_is_saved(self):
+        def post(order):
+            return self.app.handle(Request("POST", "/api/accounts/order", headers={"cookie": self.cookie},
+                                           body=json.dumps({"order": order}).encode()))
+        first = self.account
+        second = self._add("secret", name="Second")["account"]["id"]
+        third = self._add("secret", name="Third")["account"]["id"]
+        ids = lambda: [a["id"] for a in self.j("/api/accounts")["accounts"]]       # noqa: E731
+        try:
+            self.assertEqual(ids(), [first, second, third])
+            r = post([third, first, second])
+            self.assertEqual([a["id"] for a in json.loads(r.body)["accounts"]], [third, first, second])
+            self.assertEqual(ids(), [third, first, second])
+            reloaded = AccountRegistry(AccountStore(self.cfg.web.accounts_file, self.cfg.web_password), self.cfg.mail)
+            self.assertEqual([a.id for a in reloaded.list()], [third, first, second])      # saved in the encrypted file
+            reloaded.close()
+            # unknown ids are ignored and accounts that are not mentioned keep their relative order after the others
+            post(["nope", second, second])
+            self.assertEqual(ids(), [second, third, first])
+            self.assertEqual(post("not a list").status, 400)
+            self.assertEqual(post([1, 2]).status, 400)
+            self.assertEqual(ids(), [second, third, first])
+        finally:
+            post([first])                                                       # restore the usual order for later tests
+            self._delete(second)
+            self._delete(third)
 
     def test_cancel_route(self):
         r = self.app.handle(Request("POST", "/api/accounts/cancel", query={"account": self.account},
