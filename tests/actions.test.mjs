@@ -18,7 +18,8 @@ function setup(accounts) {
     message: async (r) => ({ uid: r.uid, attachments: [], remote_images_blocked: true }),
     addAccount: async (d) => ({ account: { id: 'new1', name: d.name || 'n', host: d.host, user: d.user } }),
     removeAccount: async () => ({}),
-    renameAccount: async (id, name) => ({ account: { id, name: name.trim() || 'default@host', host: 'h', user: 'u' } }),
+    updateAccount: async (id, changes) => ({ account: { id, name: (changes.name ?? '').trim() || 'default@host', host: 'h', user: 'u' }, reconnected: changes.port === 9999 }),
+    cancel: async () => ({ cancelled: true }),
     logout: async () => ({}),
   };
   const store = createStore({ authenticated: false, accounts: [], folders: [], foldersError: null,
@@ -186,10 +187,13 @@ test('the third layout can be selected, and closing a message clears the route u
   assert.equal(parseHash(loc.hash).uid, null);
 });
 
-test('renaming an account updates only that account in the store', async () => {
-  const { store, actions } = setup([A, B]);
+test('editing only the name updates that account in the store and keeps the mailbox', async () => {
+  const { store, actions, calls } = setup([A, B]);
   await actions.start(parseHash('#/a1/INBOX'));
-  await actions.renameAccount('b2', '  Family  ');
+  const loadsBefore = calls.length;
+  await actions.updateAccount('b2', { name: '  Family  ' });
   const names = Object.fromEntries(store.get().accounts.map((a) => [a.id, a.name]));
   assert.deepEqual(names, { a1: 'Alpha', b2: 'Family' });
+  assert.equal(calls.length, loadsBefore, 'nothing was reloaded');
 });
+

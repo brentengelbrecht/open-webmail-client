@@ -30,6 +30,7 @@ class EndToEnd(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         tmp = Path(cls.tmp.name)
         repo = fake_repo.build(tmp)
+        cls.repo = repo
         cls.server, port = start_server(tmp, repo)
         cls.port = port
         (tmp / "mailweb.ini").write_text(f"[web]\npassword = webpw\naccounts_file = accounts.json\n")
@@ -206,6 +207,75 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(patch({"id": other, "name": 5}).status, 400)
         self.assertEqual(patch({"id": "nope", "name": "x"}).status, 404)
         self.app.handle(Request("DELETE", "/api/accounts", query={"id": other}, headers={"cookie": self.cookie}))
+
+    def _patch(self, body):
+        return self.app.handle(Request("PATCH", "/api/accounts", headers={"cookie": self.cookie},
+                                       body=json.dumps(body).encode()))
+
+    def _delete(self, account_id):
+        self.app.handle(Request("DELETE", "/api/accounts", query={"id": account_id}, headers={"cookie": self.cookie}))
+
+    def test_edit_connection_reconnects_only_when_the_connection_changes(self):
+        second, port2 = start_server(Path(self.tmp.name), self.repo, "me", "secret")
+        account = self._add("secret", name="Edit me")["account"]["id"]
+        try:
+            service_before = self.registry.service(account)
+            # 1. a new port: the new connection is tried first, then swapped in
+            r = self._patch({"id": account, "port": port2})
+            body = json.loads(r.body)
+            self.assertEqual((r.status, body["reconnected"], body["account"]["port"]), (200, True, port2))
+            service_after = self.registry.service(account)
+            self.assertIsNot(service_after, service_before)
+            self.assertFalse(service_before._indexes.values())                 # the old connection's caches were purged
+            self.assertEqual(self.get("/api/folders", account=account).status, 200)
+            # 2. only the name: no reconnect, same service object, caches kept
+            r = self._patch({"id": account, "name": "Renamed"})
+            self.assertEqual(json.loads(r.body)["reconnected"], False)
+            self.assertIs(self.registry.service(account), service_after)
+            # 3. a blank password keeps the saved one
+            self.assertEqual(json.loads(self._patch({"id": account, "password": ""}).body)["reconnected"], False)
+            # 4. wrong password: refused, and the working connection is left untouched
+            r = self._patch({"id": account, "password": "wrong"})
+            self.assertEqual(r.status, 502)
+            self.assertEqual(self.get("/api/folders", account=account).status, 200)
+            info = {a["id"]: a for a in self.j("/api/accounts")["accounts"]}[account]
+            self.assertEqual((info["port"], info["name"]), (port2, "Renamed"))
+            self.assertIn("tls_verify", info)
+            self.assertNotIn("password", info)
+            # 5. an unreachable server: refused with an explanation, nothing changed
+            r = self._patch({"id": account, "port": 1})
+            self.assertEqual(r.status, 502)
+            self.assertIn("127.0.0.1:1", json.loads(r.body)["error"])
+            self.assertEqual({a["id"]: a for a in self.j("/api/accounts")["accounts"]}[account]["port"], port2)
+            # 6. it was saved, encrypted, with the new settings
+            reloaded = AccountRegistry(AccountStore(self.cfg.web.accounts_file, self.cfg.web_password), self.cfg.mail)
+            self.assertEqual({a.id: a.port for a in reloaded.list()}[account], port2)
+            reloaded.close()
+        finally:
+            self._delete(account)
+            second.terminate()
+            second.wait(5)
+
+    def test_default_display_name_follows_host_changes_but_a_custom_one_does_not(self):
+        plain = self._add("secret")["account"]["id"]
+        custom = self._add("secret", name="Mine")["account"]["id"]
+        try:
+            for account in (plain, custom):
+                self.assertEqual(self._patch({"id": account, "host": "localhost"}).status, 200)
+            names = {a["id"]: a["name"] for a in self.j("/api/accounts")["accounts"]}
+            self.assertEqual((names[plain], names[custom]), ("me@localhost", "Mine"))
+            self.assertEqual(self._patch({"id": plain, "tls": "yes"}).status, 400)         # flags must be real booleans
+            self.assertEqual(self._patch({"id": plain, "port": 70000}).status, 400)
+        finally:
+            self._delete(plain)
+            self._delete(custom)
+
+    def test_cancel_route(self):
+        r = self.app.handle(Request("POST", "/api/accounts/cancel", query={"account": self.account},
+                                    headers={"cookie": self.cookie}))
+        self.assertEqual((r.status, json.loads(r.body)), (200, {"cancelled": True}))
+        self.assertEqual(self.get("/api/folders").status, 200)                    # still usable afterwards
+        self.assertEqual(self.app.handle(Request("POST", "/api/accounts/cancel", headers={"cookie": self.cookie})).status, 400)
 
     def test_removing_an_account_purges_its_caches_and_connections(self):
         second = self._add("secret", name="Temp")["account"]["id"]

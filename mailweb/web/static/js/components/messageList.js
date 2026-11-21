@@ -29,8 +29,8 @@ function pager(data, actions) {
 }
 
 export function mountMessageList(root, store, actions, { onAddAccount }) {
-  store.select((s) => [s.list, s.route.uid, s.accounts, s.folders, s.foldersLoading, s.foldersError],
-    ([list, uid, accounts, folders, foldersLoading, foldersError]) => {
+  store.select((s) => [s.list, s.route.uid, s.accounts, s.folders, s.foldersLoading, s.foldersError, s.route.q],
+    ([list, uid, accounts, folders, foldersLoading, foldersError, query]) => {
       if (accounts.length === 0) {
         return render(root, h('div', { class: 'placeholder' },
           h('p', {}, 'No mail accounts yet.'),
@@ -48,6 +48,6 @@ export function mountMessageList(root, store, actions, { onAddAccount }) {
       // idle or loading: the mailbox is still being opened (folders first, then the message list)
       if (foldersError) return render(root, errorState(foldersError));
       if (!foldersLoading && folders.length === 0) return render(root, h('p', { class: 'placeholder' }, 'This account has no folders.'));
-      return render(root, spinner('Loading mailbox…'));
+      return render(root, spinner(query ? 'Searching…' : 'Loading mailbox…'));
     });
 }

@@ -16,8 +16,8 @@ export function mountSidebar(root, store, actions, { onEditAccount }) {
           h('div', { class: 'account-actions' },
             h('button', {
               class: 'icon-btn edit-account',
-              title: 'Change the display name',
-              'aria-label': `Rename account ${account.name}`,
+              title: 'Edit name and connection settings',
+              'aria-label': `Edit account ${account.name}`,
               onClick: () => onEditAccount(account),
             }, icon('edit', 18)),
             h('button', {

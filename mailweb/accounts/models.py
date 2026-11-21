@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from ..errors import BadRequest
 from ..imap import ImapEndpoint
@@ -17,6 +17,7 @@ class AccountInfo:
     port: int
     user: str
     tls: bool
+    tls_verify: bool
 
 
 @dataclass(frozen=True)
@@ -31,29 +32,42 @@ class Account:
     tls_verify: bool = True
 
     def info(self) -> AccountInfo:
-        return AccountInfo(self.id, self.name, self.host, self.port, self.user, self.tls)
+        return AccountInfo(self.id, self.name, self.host, self.port, self.user, self.tls, self.tls_verify)
 
     def endpoint(self, timeout: int) -> ImapEndpoint:
         return ImapEndpoint(self.host, self.port, self.user, self.password, self.tls, self.tls_verify, timeout)
 
     MAX_NAME = 80
 
-    def renamed(self, name: object) -> "Account":
-        """A copy with a new display name. Blank means "use the default" (user@host), as when adding."""
-        if not isinstance(name, str):
-            raise BadRequest("name must be text")
-        name = " ".join(name.split())
-        if len(name) > self.MAX_NAME:
-            raise BadRequest(f"name is too long (at most {self.MAX_NAME} characters)")
-        return replace(self, name=name or f"{self.user}@{self.host}")
-
     @classmethod
     def from_payload(cls, data: dict) -> "Account":
-        def text(key: str, required: bool = True) -> str:
+        return cls._build(secrets.token_hex(4), data)
+
+    def updated(self, changes: dict) -> "Account":
+        """A copy with the given fields changed; fields not mentioned keep their value. A blank or missing
+        password keeps the current one. A display name that is still the automatic user@host follows changes to them."""
+        merged = {"name": self.name, "host": self.host, "port": self.port, "user": self.user,
+                  "password": self.password, "tls": self.tls, "tls_verify": self.tls_verify}
+        for key in merged:
+            if key in changes and not (key == "password" and not changes[key]):
+                merged[key] = changes[key]
+        if "name" not in changes and self.name == f"{self.user}@{self.host}":
+            merged["name"] = ""
+        return self._build(self.id, merged)
+
+    @classmethod
+    def _build(cls, account_id: str, data: dict) -> "Account":
+        def text(key: str) -> str:
             value = data.get(key)
             value = value.strip() if isinstance(value, str) else ""
-            if required and not value:
+            if not value:
                 raise BadRequest(f"{key} is required")
+            return value
+
+        def flag(key: str, default: bool) -> bool:
+            value = data.get(key, default)
+            if not isinstance(value, bool):
+                raise BadRequest(f"{key} must be true or false")
             return value
 
         host, user = text("host"), text("user")
@@ -66,6 +80,11 @@ class Account:
             raise BadRequest("port must be a number") from None
         if not 1 <= port <= 65535:
             raise BadRequest("port must be between 1 and 65535")
-        return cls(id=secrets.token_hex(4), name=text("name", required=False) or f"{user}@{host}",
-                   host=host, port=port, user=user, password=password,
-                   tls=bool(data.get("tls")), tls_verify=bool(data.get("tls_verify", True)))
+        name = data.get("name", "")
+        if name is not None and not isinstance(name, str):
+            raise BadRequest("name must be text")
+        name = " ".join((name or "").split())
+        if len(name) > cls.MAX_NAME:
+            raise BadRequest(f"name is too long (at most {cls.MAX_NAME} characters)")
+        return cls(id=account_id, name=name or f"{user}@{host}", host=host, port=port, user=user, password=password,
+                   tls=flag("tls", False), tls_verify=flag("tls_verify", True))

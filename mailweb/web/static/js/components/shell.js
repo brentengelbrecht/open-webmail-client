@@ -5,7 +5,7 @@ import { pageSpinner } from '../util/spinner.js';
 import { mountLogin } from './login.js';
 import { mountGutter } from './gutter.js';
 import { createAccountDialog } from './accountDialog.js';
-import { createRenameDialog } from './renameDialog.js';
+import { createEditAccountDialog } from './editAccountDialog.js';
 import { createSplitters } from './splitters.js';
 import { mountHeader } from './header.js';
 import { mountSidebar } from './sidebar.js';
@@ -34,8 +34,8 @@ export function mountShell(root, store, actions) {
     const [gutter, header, sidebar, list, reader] = parts;
     const dialog = createAccountDialog({ onAdd: (details) => actions.addAccount(details) });
     const splitters = createSplitters({ sidebar, list }, scope, actions);
-    const renameDialog = createRenameDialog({ onRename: (id, name) => actions.renameAccount(id, name) });
-    const layout = h('div', { class: 'layout' }, parts, splitters.elements, dialog.element, renameDialog.element);
+    const editDialog = createEditAccountDialog({ onSave: (id, changes) => actions.updateAccount(id, changes) });
+    const layout = h('div', { class: 'layout' }, parts, splitters.elements, dialog.element, editDialog.element);
     render(root, layout);
 
     const sidebarBox = h('div', { class: 'sidebar-inner' });
@@ -43,7 +43,7 @@ export function mountShell(root, store, actions) {
     const onAddAccount = () => dialog.open();
     mountGutter(gutter, scope, actions, { onAddAccount });
     mountHeader(header, scope, actions);
-    mountSidebar(sidebarBox, scope, actions, { onEditAccount: (account) => renameDialog.open(account) });
+    mountSidebar(sidebarBox, scope, actions, { onEditAccount: (account) => editDialog.open(account) });
     mountMessageList(list, scope, actions, { onAddAccount });
     mountReader(reader, scope, actions);
 

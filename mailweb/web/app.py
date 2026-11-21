@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from ..errors import BadRequest, MailWebError, NotFound, Unauthorized, UpstreamError
+from ..errors import BadRequest, Cancelled, MailWebError, NotFound, Unauthorized, UpstreamError
 from .context import AppContext
 from .http import Request, Response, json_response
 from .router import Router
@@ -13,7 +13,7 @@ from .static_files import StaticFiles
 
 log = logging.getLogger(__name__)
 
-_STATUS = ((BadRequest, 400), (Unauthorized, 401), (NotFound, 404), (UpstreamError, 502))
+_STATUS = ((BadRequest, 400), (Unauthorized, 401), (NotFound, 404), (UpstreamError, 502), (Cancelled, 499))
 
 _APP_CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
             "frame-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")

@@ -1,5 +1,8 @@
-"""Add, list, rename and remove mail accounts."""
+"""Add, list, edit, cancel work for, and remove mail accounts."""
 from ..http import json_response
+
+
+EDITABLE = ("name", "host", "port", "user", "password", "tls", "tls_verify")
 
 
 def register(router, ctx):
@@ -14,9 +17,16 @@ def register(router, ctx):
         return json_response({"account": registry.add(request.json())})
 
     @router.route("PATCH", "/api/accounts")
-    def rename_account(request):
+    def update_account(request):
         body = request.json()
-        return json_response({"account": registry.rename(str(body.get("id", "")), body.get("name", ""))})
+        changes = {key: body[key] for key in EDITABLE if key in body}
+        account, reconnected = registry.update(str(body.get("id", "")), changes)
+        return json_response({"account": account, "reconnected": reconnected})
+
+    @router.route("POST", "/api/accounts/cancel")
+    def cancel_work(request):
+        registry.cancel(request.required("account"))
+        return json_response({"cancelled": True})
 
     @router.route("DELETE", "/api/accounts")
     def remove_account(request):

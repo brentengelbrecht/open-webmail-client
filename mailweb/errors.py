@@ -19,3 +19,7 @@ class NotFound(MailWebError):
 
 class UpstreamError(MailWebError):
     """The IMAP server is unreachable or misbehaving."""
+
+
+class Cancelled(MailWebError):
+    """The work was cancelled on purpose (the user switched mailbox or cleared a search)."""

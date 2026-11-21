@@ -27,9 +27,13 @@ function view(account, m, imagesAllowed, actions) {
 }
 
 export function mountReader(root, store, actions) {
-  store.select((s) => [s.message, s.layout], ([message, layout]) => {
-    // Full-width layout: the panel slides out over the list, so leave its last content in place until it is gone.
-    if (layout === 'full' && message.status === 'idle') return;
+  let shownAccount = null;
+  store.select((s) => [s.message, s.layout, s.route.account], ([message, layout, account]) => {
+    const switched = account !== shownAccount;
+    shownAccount = account;
+    // Full-width layout: the panel slides out over the list, so leave its last content in place until it is gone
+    // (but never across a change of mailbox: that content must disappear with the rest of the old mailbox).
+    if (layout === 'full' && message.status === 'idle' && !switched) return;
     if (message.status === 'loading') return render(root, spinner('Loading message…'));
     if (message.status === 'error') return render(root, errorState(message.error));
     if (!message.data) return render(root, h('p', { class: 'placeholder' }, 'Select a message to read'));

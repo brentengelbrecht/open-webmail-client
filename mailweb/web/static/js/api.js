@@ -13,7 +13,7 @@ function queryString(params = {}) {
   return clean.length ? `?${new URLSearchParams(clean)}` : '';
 }
 
-async function request(path, { method = 'GET', params, body } = {}) {
+async function request(path, { method = 'GET', params, body, signal } = {}) {
   let response;
   try {
     response = await fetch(path + queryString(params), {
@@ -21,8 +21,10 @@ async function request(path, { method = 'GET', params, body } = {}) {
       credentials: 'same-origin',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (error?.name === 'AbortError') throw error;          // cancelled on purpose: callers ignore it
     // fetch() only throws when there was no HTTP reply at all (server stopped, connection cut, blocked).
     throw new ApiError('No reply from the mailweb server. Is it still running? Check the terminal where run.py was started.', 0);
   }
@@ -38,14 +40,15 @@ async function request(path, { method = 'GET', params, body } = {}) {
 export const api = {
   accounts: () => request('/api/accounts'),
   addAccount: (details) => request('/api/accounts', { method: 'POST', body: details }),
-  renameAccount: (id, name) => request('/api/accounts', { method: 'PATCH', body: { id, name } }),
+  updateAccount: (id, changes) => request('/api/accounts', { method: 'PATCH', body: { id, ...changes } }),
+  cancel: (account) => request('/api/accounts/cancel', { method: 'POST', params: { account } }),
   removeAccount: (id) => request('/api/accounts', { method: 'DELETE', params: { id } }),
   session: () => request('/api/session'),
   login: (password) => request('/api/login', { method: 'POST', body: { password } }),
   logout: () => request('/api/logout', { method: 'POST' }),
-  folders: ({ account, refresh }) => request('/api/folders', { params: { account, refresh } }),
-  messages: ({ account, folder, page, q, refresh }) => request('/api/messages', { params: { account, folder, page, q, refresh } }),
-  message: ({ account, folder, uid }) => request('/api/message', { params: { account, folder, uid } }),
+  folders: ({ account, refresh, signal }) => request('/api/folders', { params: { account, refresh }, signal }),
+  messages: ({ account, folder, page, q, refresh, signal }) => request('/api/messages', { params: { account, folder, page, q, refresh }, signal }),
+  message: ({ account, folder, uid, signal }) => request('/api/message', { params: { account, folder, uid }, signal }),
 };
 
 // URLs the browser loads directly (iframe / downloads).

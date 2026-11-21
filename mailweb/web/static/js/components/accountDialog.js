@@ -1,4 +1,5 @@
 import { h, render } from '../util/dom.js';
+import { accountForm } from './accountFields.js';
 
 const BLANK = () => ({ host: '', port: '1143', tls: false, tls_verify: true, name: '', user: '', password: '' });
 
@@ -10,10 +11,7 @@ export function createAccountDialog({ onAdd }) {
   let busy = false;
   let error = '';
 
-  const field = (label, input) => h('label', { class: 'field' }, h('span', {}, label), input);
-  const text = (key, props = {}) => h('input', { value: data[key], autocomplete: 'off', ...props, onInput: (e) => { data[key] = e.target.value; } });
-  const check = (key, label, onChange) => h('label', { class: 'check' },
-    h('input', { type: 'checkbox', checked: data[key] ? true : null, onChange: (e) => { data[key] = e.target.checked; onChange?.(); } }), label);
+  const { field, text, tlsCheckbox, verifyCheckbox } = accountForm(() => data, () => draw());
 
   function serverStep() {
     return h('form', {
@@ -24,11 +22,8 @@ export function createAccountDialog({ onAdd }) {
     h('p', { class: 'muted' }, 'Used from the computer running mailweb, not from your browser.'),
     field('Port', text('port', { type: 'number', min: 1, max: 65535, required: true })),
     h('p', { class: 'muted' }, 'imap_archive_server listens on 1143 unless its .ini says otherwise.'),
-    check('tls', 'Use TLS (encrypted, like port 993)', () => {
-      if (['143', '993'].includes(data.port)) data.port = data.tls ? '993' : '143';   // standard IMAP ports only
-      draw();
-    }),
-    data.tls && check('tls_verify', 'Verify the server certificate (untick for a self-signed one)'),
+    tlsCheckbox(),
+    verifyCheckbox(),
     h('div', { class: 'actions' },
       h('button', { type: 'button', class: 'text-btn', onClick: () => dialog.close() }, 'Cancel'),
       h('button', { type: 'submit', class: 'primary' }, 'Next')));

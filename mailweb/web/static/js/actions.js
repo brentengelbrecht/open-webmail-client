@@ -23,8 +23,29 @@ export function createActions(store, api, env = browserEnv()) {
   let sessionTimer = null;
   let guessedFolder = false;       // the current folder is an assumed INBOX, not one the user chose
 
-  // Forget everything about the current mailbox.
-  function clearMailbox() {
+  // Every load runs on a named channel with its own AbortController: a newer load on the same channel replaces
+  // the older one, and abortAll() stops them all (switching mailbox, signing out, removing an account).
+  const channels = new Map();
+  function begin(name) {
+    channels.get(name)?.abort();
+    const controller = new AbortController();
+    channels.set(name, controller);
+    return controller.signal;
+  }
+  const abort = (name) => { channels.get(name)?.abort(); channels.delete(name); };
+  function abortAll() {
+    channels.forEach((controller) => controller.abort());
+    channels.clear();
+  }
+  const isAbort = (error) => error?.name === 'AbortError';
+  // Ask the server to stop any IMAP work still running for an account (the browser aborting a request does not).
+  const cancelOnServer = (account) => (account ? api.cancel(account).catch(() => {}) : Promise.resolve());
+
+  // Forget everything about the current mailbox, and stop whatever is still loading for it.
+  function clearMailbox({ cancelServer = true } = {}) {
+    const previous = mailboxAccount;
+    abortAll();
+    if (cancelServer) cancelOnServer(previous);
     listKey = messageKey = mailboxAccount = null;
     guessedFolder = false;
     store.set({ folders: [], foldersError: null, foldersLoading: false, list: IDLE, message: IDLE });
@@ -33,14 +54,15 @@ export function createActions(store, api, env = browserEnv()) {
   const isCurrent = (account) => store.get().route.account === account;
 
   async function loadFolders(account, refresh = false) {
+    const signal = begin('folders');
     store.set({ foldersLoading: true });
     try {
-      const { folders } = await api.folders({ account, refresh });
-      if (isCurrent(account)) store.set({ folders, foldersError: null });
+      const { folders } = await api.folders({ account, refresh, signal });
+      if (!signal.aborted && isCurrent(account)) store.set({ folders, foldersError: null });
     } catch (error) {
-      if (isCurrent(account)) store.set({ foldersError: error.message });
+      if (!isAbort(error) && !signal.aborted && isCurrent(account)) store.set({ foldersError: error.message });
     } finally {
-      if (isCurrent(account)) store.set({ foldersLoading: false });
+      if (!signal.aborted && isCurrent(account)) store.set({ foldersLoading: false });
     }
   }
 
@@ -48,12 +70,15 @@ export function createActions(store, api, env = browserEnv()) {
     const key = JSON.stringify([route.account, route.folder, route.page, route.q]);
     if (!refresh && key === listKey) return;
     listKey = key;
+    const signal = begin('list');
     store.set({ list: { ...IDLE, status: 'loading' } });
     try {
-      const data = await api.messages({ ...route, refresh });
-      if (listKey === key) store.set({ list: { status: 'ready', data, error: null } });
+      const data = await api.messages({ ...route, refresh, signal });
+      if (listKey === key && !signal.aborted) store.set({ list: { status: 'ready', data, error: null } });
     } catch (error) {
-      if (listKey === key) store.set({ list: { status: 'error', data: null, error: error.message } });
+      if (!isAbort(error) && listKey === key && !signal.aborted) {
+        store.set({ list: { status: 'error', data: null, error: error.message } });
+      }
     }
   }
 
@@ -61,13 +86,16 @@ export function createActions(store, api, env = browserEnv()) {
     const key = route.uid ? JSON.stringify([route.account, route.folder, route.uid]) : null;
     if (key === messageKey) return;
     messageKey = key;
-    if (!key) { store.set({ message: IDLE }); return; }
+    if (!key) { abort('message'); store.set({ message: IDLE }); return; }
+    const signal = begin('message');
     store.set({ message: { ...IDLE, status: 'loading' } });
     try {
-      const data = await api.message(route);
-      if (messageKey === key) store.set({ message: { status: 'ready', data, error: null, imagesAllowed: false } });
+      const data = await api.message({ ...route, signal });
+      if (messageKey === key && !signal.aborted) store.set({ message: { status: 'ready', data, error: null, imagesAllowed: false } });
     } catch (error) {
-      if (messageKey === key) store.set({ message: { status: 'error', data: null, error: error.message } });
+      if (!isAbort(error) && messageKey === key && !signal.aborted) {
+        store.set({ message: { status: 'error', data: null, error: error.message } });
+      }
     }
   }
 
@@ -140,15 +168,32 @@ export function createActions(store, api, env = browserEnv()) {
     search: (q) => navigate({ account: accountId(), folder: store.get().route.folder, q, page: 1 }),
     selectAccount: (id) => navigate({ account: id }),
 
+    // The X in the search box: stop the search that is running (in the browser and on the server), then show the
+    // unfiltered list again. We wait for the server to confirm the cancel so it cannot hit the list request that follows.
+    async clearSearch() {
+      const { route } = store.get();
+      if (!route.account || !route.q) return;
+      abort('list');
+      await cancelOnServer(route.account);
+      navigate({ ...route, q: '', page: 1, uid: null });
+    },
+
     // accounts
     async addAccount(details) {
       const { account } = await api.addAccount(details);
       store.set({ accounts: [...store.get().accounts, account] });
       navigate({ account: account.id });
     },
-    async renameAccount(id, name) {
-      const { account } = await api.renameAccount(id, name);
+    // Change an account's name and/or connection settings. If the server reconnected (the connection settings
+    // changed), everything shown for the old connection is dropped and the mailbox is loaded again from the new one.
+    async updateAccount(id, changes) {
+      const { account, reconnected } = await api.updateAccount(id, changes);
       store.set({ accounts: store.get().accounts.map((a) => (a.id === id ? account : a)) });
+      if (reconnected && store.get().route.account === id) {
+        clearMailbox({ cancelServer: false });          // the server already dropped the old connection and its work
+        await this.applyRoute({ account: id, folder: '', page: 1, q: '', uid: null });
+      }
+      return account;
     },
 
     // Remove an account and erase what this page knows about it. The server is asked first; if it fails
@@ -158,6 +203,7 @@ export function createActions(store, api, env = browserEnv()) {
       const account = state.accounts.find((a) => a.id === id);
       if (!account) return;
       await api.removeAccount(id);
+      abortAll();
 
       const needles = [account.id, account.name, account.host, account.user];
       const remaining = state.accounts.filter((a) => a.id !== id);

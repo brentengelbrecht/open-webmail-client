@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Optional, TypeVar
 
-from ..errors import MailWebError, NotFound, UpstreamError
+from ..errors import Cancelled, MailWebError, NotFound, UpstreamError
 from . import utf7
 from .responses import FetchRecord, parse_fetch, parse_list, parse_status, parse_status_lines
 
@@ -129,6 +129,16 @@ class ImapConnection:
             return f"Cannot connect to {where}: TLS handshake failed. Is TLS ticked only for a TLS port?"
         return f"Cannot connect to {where}: {exc}"
 
+    def interrupt(self) -> None:
+        """Abort whatever this connection is doing, from another thread: closing the socket makes the
+        blocked read fail at once. The connection is unusable afterwards; the caller resets it."""
+        client = self._client
+        if client is not None:
+            try:
+                client.sock.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+
     def reset(self) -> None:
         client, self._client, self._selected = self._client, None, None
         if client is not None:
@@ -222,6 +232,10 @@ class ImapGateway:
     An operation may be re-run once after a dropped connection, so it must be idempotent
     (every operation here is read-only). The most recently used connection is reused first, so a
     folder that is already selected usually stays selected.
+
+    cancel() stops everything that is running or queued right now: running operations are interrupted by
+    closing their sockets, queued ones never start, and all of them raise Cancelled (never retried).
+    Operations started after cancel() are unaffected.
     """
 
     SLOW_SECONDS = 1.0
@@ -230,29 +244,47 @@ class ImapGateway:
         self._endpoint = endpoint
         self._size = max(1, size)
         self._idle: list[ImapConnection] = []
+        self._busy: set[ImapConnection] = set()
         self._created = 0
+        self._epoch = 0                       # bumped by cancel(); work started in an older epoch is cancelled
         self._available = threading.Condition()
 
-    def _acquire(self) -> ImapConnection:
+    def _acquire(self, epoch: int) -> ImapConnection:
         with self._available:
             while True:
+                if self._epoch != epoch:
+                    raise Cancelled("cancelled")
+                conn = None
                 if self._idle:
-                    return self._idle.pop()
-                if self._created < self._size:
+                    conn = self._idle.pop()
+                elif self._created < self._size:
                     self._created += 1
-                    return ImapConnection(self._endpoint)
+                    conn = ImapConnection(self._endpoint)
+                if conn is not None:
+                    self._busy.add(conn)
+                    return conn
                 self._available.wait()
 
     def _release(self, conn: ImapConnection) -> None:
         with self._available:
+            self._busy.discard(conn)
             self._idle.append(conn)
             self._available.notify()
 
+    def cancel(self) -> None:
+        with self._available:
+            self._epoch += 1
+            running = list(self._busy)
+            self._available.notify_all()      # wake queued callers so they notice
+        for conn in running:
+            conn.interrupt()
+
     def run(self, operation: Callable[[ImapConnection], T]) -> T:
-        conn = self._acquire()
+        epoch = self._epoch
+        conn = self._acquire(epoch)
         started = time.monotonic()
         try:
-            return self._run_on(conn, operation)
+            return self._run_on(conn, operation, epoch)
         except MailWebError:
             raise
         except BaseException:
@@ -265,24 +297,32 @@ class ImapGateway:
             log.log(logging.INFO if elapsed >= self.SLOW_SECONDS else logging.DEBUG,
                     "IMAP %s took %.2fs", name, elapsed)
 
-    @staticmethod
-    def _run_on(conn: ImapConnection, operation: Callable[[ImapConnection], T]) -> T:
+    def _run_on(self, conn: ImapConnection, operation: Callable[[ImapConnection], T], epoch: int) -> T:
         for attempt in (1, 2):
             try:
+                if self._epoch != epoch:
+                    raise Cancelled("cancelled")
                 conn.ensure_connected()
                 return operation(conn)
             except MailWebError:
                 raise
-            except TRANSIENT as exc:
-                log.warning("IMAP connection problem (attempt %d): %s", attempt, exc)
-                conn.reset()
-                if attempt == 2:
-                    raise UpstreamError(f"IMAP server unavailable: {exc}") from exc
-            except imaplib.IMAP4.error as exc:
-                raise UpstreamError(f"IMAP error: {_reason(exc)}") from exc
+            except Exception as exc:
+                if self._epoch != epoch:      # the failure is the interruption itself: do not retry
+                    conn.reset()
+                    raise Cancelled("cancelled") from exc
+                if isinstance(exc, TRANSIENT):
+                    log.warning("IMAP connection problem (attempt %d): %s", attempt, exc)
+                    conn.reset()
+                    if attempt == 2:
+                        raise UpstreamError(f"IMAP server unavailable: {exc}") from exc
+                elif isinstance(exc, imaplib.IMAP4.error):
+                    raise UpstreamError(f"IMAP error: {_reason(exc)}") from exc
+                else:
+                    raise
         raise AssertionError("unreachable")
 
     def close(self) -> None:
+        self.cancel()
         with self._available:
             for conn in self._idle:
                 conn.reset()

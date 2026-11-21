@@ -52,7 +52,7 @@ front-end controller logic (account switching, routing, session expiry, pane siz
 ## Features
 
 Multiple accounts (gutter with **+** and one icon per account; pencil and trash icons appear when you hover the account
-name above the folder list, to rename or remove it; switching clears the old mailbox and loads the new one),
+name above the folder list, to edit its name and connection settings or remove it; switching clears the old mailbox and loads the new one),
 folder list with unread counts, newest-first message list with paging, message view (HTML or plain text),
 attachment download, `.eml` download, reading pane to the right of the list, below it, or slid in over a full-width list Gmail style (three icons at the
 far right of the top bar; in the third layout the back arrow or Esc slides the message out again), a hamburger button that slides the folder list away and back (remembered; an overlay on phones), drag handles on the pane dividers (also arrow keys when focused; double-click resets; sizes and
@@ -133,6 +133,29 @@ sorts by date, and only fetches headers for the 50 messages on screen (cached fo
   A session lasts `[web] session_minutes` from sign-in (not extended by activity). The server tells the browser how long
   is left, so the browser signs itself out at that moment; restarting the server also ends all sessions.
 * The login password is compared in constant time. There is one shared account, matching the archive server.
+
+## Stopping work, and editing a connection
+
+* **Switching mailbox** immediately aborts every request still loading for the old one (folders, list, message) and tells
+  the server to cancel that account's IMAP work. `POST /api/accounts/cancel?account=` interrupts running IMAP calls by
+  closing their sockets and drops queued ones; none of them is retried. The old mailbox's screen content is cleared first.
+* **The X in the search box** (or Esc in it) does the same for a running search, waits for the server to confirm, then
+  shows the unfiltered list.
+* **Edit (pencil on the account name)** opens a dialog with the display name and the connection settings (server, port,
+  TLS, certificate check, user name, password; blank password keeps the saved one). **Save & reconnect** first tries the
+  new settings, and only if they work drops the old connection and loads the mailbox again; a typo leaves the working
+  connection untouched and shows the error in the dialog. **Cancel** or Esc changes nothing. The saved password is never
+  sent to the browser.
+
+## HTTPS for the web UI
+
+Set `[web] cert` and `key` (PEM files) and open `https://`. The easiest trusted certificate for a local machine is
+[mkcert](https://github.com/FiloSottile/mkcert): `mkcert -install && mkcert localhost 127.0.0.1`. With plain `openssl` the
+certificate needs a subjectAltName for the name you type in the browser, e.g.
+`openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout key.pem -out cert.pem -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`.
+The key must not be passphrase-protected. The TLS handshake runs in each connection's own thread, so a silent
+connection (browsers open speculative ones) cannot block the others, and `http://` on the HTTPS port is redirected to
+`https://` instead of hanging. A bad certificate or key stops startup with a one-line explanation.
 
 ## Removing an account (trash icon)
 

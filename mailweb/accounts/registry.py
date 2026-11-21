@@ -39,15 +39,49 @@ class AccountRegistry:
             self._store.save(self._accounts.values())
         return account.info()
 
-    def rename(self, account_id: str, name: object) -> AccountInfo:
+    def update(self, account_id: str, changes: dict) -> tuple[AccountInfo, bool]:
+        """Change an account. If the connection settings changed, the new ones are tried first (like adding), and only
+        then is the old connection dropped and replaced, so a typo cannot leave the account without a working
+        connection. Returns the new info and whether a reconnect happened."""
         with self._lock:
-            account = self._accounts.get(account_id)
-            if account is None:
-                raise NotFound("unknown account")
-            renamed = account.renamed(name)
-            self._accounts[account_id] = renamed
+            old = self._accounts.get(account_id)
+        if old is None:
+            raise NotFound("unknown account")
+        new = old.updated(changes)
+        timeout = self._settings.imap_timeout
+        reconnect = new.endpoint(timeout) != old.endpoint(timeout)
+        gateway = None
+        if reconnect:
+            gateway = ImapGateway(new.endpoint(timeout), self._settings.imap_connections)
+            try:
+                gateway.run(lambda imap: imap.list_folders())        # raises UpstreamError with the reason
+            except Exception:
+                gateway.close()
+                raise
+        with self._lock:
+            if self._accounts.get(account_id) is not old:           # removed or changed while we were connecting
+                if gateway:
+                    gateway.close()
+                raise NotFound("the account changed while it was being edited")
+            self._accounts[account_id] = new
+            old_gateway = old_service = None
+            if reconnect:
+                old_gateway, old_service = self._services.pop(account_id, (None, None))
+                self._services[account_id] = (gateway, MailService(gateway, self._settings))
             self._store.save(self._accounts.values())
-            return renamed.info()
+        if old_service:
+            old_service.purge()
+        if old_gateway:
+            old_gateway.close()                                      # cancels anything still running on it
+        gc.collect()
+        return new.info(), reconnect
+
+    def cancel(self, account_id: str) -> None:
+        """Stop whatever is running or queued for this account right now (it stays connected)."""
+        with self._lock:
+            entry = self._services.get(account_id)
+        if entry:
+            entry[0].cancel()
 
     def remove(self, account_id: str) -> None:
         """Forget an account completely: saved login, open connections and everything cached for it."""
@@ -62,7 +96,7 @@ class AccountRegistry:
         if service:
             service.purge()
         if gateway:
-            gateway.close()
+            gateway.close()                                      # cancels anything still running on it
         gc.collect()                                         # let the runtime release what is now unreferenced
 
     def service(self, account_id: str) -> MailService:
