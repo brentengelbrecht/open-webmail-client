@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Open Webmail Client" width="420">
+  <img src="resources/logo.png" alt="Open Webmail Client" width="420">
 </p>
 
 # Open Webmail Client
